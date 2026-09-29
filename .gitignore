@@ -1,2 +1,3 @@
 inv_env
 inv_frontend/node_modules
+inv_backend/db.sqlite3
