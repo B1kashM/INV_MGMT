@@ -1,7 +1,5 @@
 from rest_framework import serializers
-from .models import ProductDetails
-from .models import Purchases
-from .models import Sales
+from .models import *
 
 
 class ProductsSerializer(serializers.ModelSerializer):
@@ -19,4 +17,23 @@ class PurchaseSerializer(serializers.ModelSerializer):
 class SalesSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sales
+        fields = "__all__"
+
+
+
+class PlatformSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Platforms
+        fields = "__all__"
+
+
+class SuppliersSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Suppliers
+        fields = "__all__"
+
+
+class ProductCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductCategory
         fields = "__all__"

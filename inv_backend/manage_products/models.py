@@ -41,7 +41,7 @@ class Purchases(models.Model):
 
 class Platforms(models.Model):
     platform_name = models.CharField(max_length=100)
-    status = models.BooleanField()
+    status = models.BooleanField(default=True)
 
 class Sales(models.Model):
     platform_id = models.ForeignKey(Platforms, on_delete=models.CASCADE)
