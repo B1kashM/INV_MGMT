@@ -27,7 +27,7 @@ type FormState = {
   supplier_id: string;
   quantity: string;
   purchase_price: string;
-  purchase_date: string; // datetime-local value, optional
+  purchase_date: string; // datetime-local value, only used when editing
 };
 
 const emptyForm: FormState = {
@@ -65,6 +65,19 @@ const formatDate = (iso: string) => {
 
 const money = (v: string | number) =>
   `₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+
+// Turns an error response into a short message (avoids dumping a whole HTML error page)
+async function readError(res: Response) {
+  try {
+    const json = await res.json();
+    const msg = json?.error ?? json?.detail ?? json?.message;
+    return msg ? String(msg) : JSON.stringify(json).slice(0, 200);
+  } catch {
+    return res.status === 404
+      ? "Endpoint not found (404). Check the URL."
+      : `Server responded with ${res.status}`;
+  }
+}
 
 export default function PurchasePage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -164,6 +177,10 @@ export default function PurchasePage() {
       setFormError("Quantity must be greater than 0.");
       return;
     }
+    if (form.purchase_price === "" || !(Number(form.purchase_price) >= 0)) {
+      setFormError("Enter a valid purchase price.");
+      return;
+    }
 
     setSaving(true);
     setFormError(null);
@@ -172,25 +189,26 @@ export default function PurchasePage() {
         product_id: Number(form.product_id),
         supplier_id: Number(form.supplier_id),
         quantity: Number(form.quantity),
-        purchase_price: form.purchase_price,
+        purchase_price: Number(form.purchase_price).toFixed(2),
         total_amount: formTotal.toFixed(2),
       };
-      if (form.purchase_date)
-        payload.purchase_date = new Date(form.purchase_date).toISOString();
 
-      // Update URL assumes update_purchase/<id>. Use "PATCH" if your API expects it.
+      // Editing keeps using update_purchase; the purchase date can only be changed there.
+      if (editing && form.purchase_date) {
+        payload.purchase_date = new Date(form.purchase_date).toISOString();
+      }
+
+      // Adding goes through purchase_product/. Update URL assumes update_purchase/<id>;
+      // use "PATCH" if your API expects it.
       const url = editing
         ? `${API}/update_purchase/${editing.id}`
-        : `${API}/add_purchase/`;
+        : `${API}/purchase_product/`;
       const res = await fetch(url, {
         method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Server responded with ${res.status}`);
-      }
+      if (!res.ok) throw new Error(await readError(res));
       setModalOpen(false);
       await loadAll();
     } catch (e) {
@@ -262,7 +280,7 @@ export default function PurchasePage() {
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
             <tr>
-              {["ID","Product", "Supplier", "Qty", "Unit cost", "Total", "Purchased on"].map(
+              {["ID", "Product", "Supplier", "Qty", "Unit cost", "Total", "Purchased on"].map(
                 (h) => (
                   <th key={h} className="whitespace-nowrap px-4 py-3 font-medium">
                     {h}
@@ -275,7 +293,7 @@ export default function PurchasePage() {
           <tbody className="divide-y divide-slate-100">
             {!loading && purchases.length === 0 && !error && (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-slate-600">
+                <td colSpan={8} className="px-4 py-12 text-center text-slate-600">
                   No purchases recorded. Use “Add purchase” to log your first stock order.
                 </td>
               </tr>
@@ -395,14 +413,17 @@ export default function PurchasePage() {
                 />
               </Field>
 
-              <Field label="Purchased on (optional)">
-                <input
-                  type="datetime-local"
-                  value={form.purchase_date}
-                  onChange={(e) => setField("purchase_date", e.target.value)}
-                  className={inputCls}
-                />
-              </Field>
+              {/* purchase_product/ doesn't take a date, so it's only editable on existing purchases */}
+              {editing && (
+                <Field label="Purchased on (optional)">
+                  <input
+                    type="datetime-local"
+                    value={form.purchase_date}
+                    onChange={(e) => setField("purchase_date", e.target.value)}
+                    className={inputCls}
+                  />
+                </Field>
+              )}
 
               <p className="self-end pb-2 text-sm text-slate-700 sm:text-right">
                 Total:{" "}

@@ -52,3 +52,17 @@ class Sales(models.Model):
     total_amount = models.DecimalField(max_digits=20, decimal_places=2)
     Sell_date = models.DateTimeField(auto_now_add=True)
     status = models.BooleanField()
+
+
+class Returns(models.Model):
+    sales_id = models.ForeignKey(Sales, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField()
+    return_date = models.DateTimeField(auto_now_add=True)
+
+
+class PurchaseLogs(models.Model):
+    product_id = models.ForeignKey(ProductDetails, on_delete=models.CASCADE)
+    purchase_price = models.DecimalField(max_digits=20, decimal_places=2)
+    quantity = models.PositiveIntegerField()
+    supplier_id = models.ForeignKey(Suppliers, on_delete=models.CASCADE)
+    total_amount = models.DecimalField(max_digits=20, decimal_places=2)

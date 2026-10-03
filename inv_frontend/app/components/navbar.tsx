@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import DashboardPage from "../dashboard/page";
 
 type NavItem = { label: string; href: string; icon: string };
 type NavGroup = { heading: string; items: NavItem[] };
 
 // Heroicons-style outline paths (24x24)
 const ICONS = {
+  dashboard :
+    "M3 3h7v7H3z  M14 3h7v7h-7z  M14 14h7v7h-7z  M3 14h7v7H3z",
   products:
     "M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9",
   category:
@@ -28,6 +31,7 @@ const NAV: NavGroup[] = [
   {
     heading: "Inventory",
     items: [
+      { label: "Dashboard", href: "/dashboard", icon: ICONS.dashboard },
       { label: "Products", href: "/home", icon: ICONS.products },
       { label: "category", href: "/category", icon: ICONS.category },
     ],

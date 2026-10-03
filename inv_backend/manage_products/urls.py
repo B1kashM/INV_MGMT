@@ -29,4 +29,7 @@ urlpatterns = [
     path("get_category/", get_category),
     path("delete_category/<int:category_id>", delete_category),
     path("update_category/<int:category_id>", update_category),
+    path("get_summary/", get_summary),
+    path("return_sales/<int:product_id>", return_sales),
+    path("purchase_product/", purchase_product)
     ]

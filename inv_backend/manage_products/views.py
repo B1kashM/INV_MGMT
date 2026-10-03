@@ -3,7 +3,9 @@ from django.shortcuts import render
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .serializers import *
+from rest_framework import status
 from .models import *
+from django.db.models import Sum
 
 
 #HearBeat
@@ -94,13 +96,20 @@ def get_sales(request):
 def add_sales(request):
     sales_data = request.data
     quantity = sales_data["quantity"]
-    selling_price = sales_data["selling_price"]
+    product_obj  = ProductDetails.objects.get(id=sales_data["product_id"])
+    if product_obj.stock_quantity<sales_data["quantity"]:
+        return Response({"error":"Stocks not available"},status=400)
+    selling_price = float(sales_data["selling_price"])
+
     sales_data["total_amount"] = quantity*selling_price
     data_serializer = SalesSerializer(data = sales_data)
     if not data_serializer.is_valid():
         return Response({"error":data_serializer.errors})
             
     data_serializer.save()
+    product_obj.stock_quantity-=sales_data["quantity"]
+    product_obj.save()
+
         
 
     return Response(data_serializer.is_valid())
@@ -153,7 +162,7 @@ def update_sales(request, sales_id):
 
 @api_view(["GET"])
 def get_purchase(request):
-    purchase_obj = Purchases.objects.all()
+    purchase_obj = PurchaseLogs.objects.all()
     data_serializer = PurchaseSerializer(purchase_obj, many=True).data
     for i in range(len(data_serializer)):
         data_serializer[i]["supplier_id"]=Suppliers.objects.get(id=data_serializer[i]["supplier_id"]).supplier_name
@@ -167,7 +176,7 @@ def get_purchase(request):
 def add_purchase(request):
     purchase_data = request.data
     quantity = purchase_data["quantity"]
-    purchase_price = purchase_data["purchase_price"]
+    purchase_price = float(purchase_data["purchase_price"])
     purchase_data["total_amount"] = quantity*purchase_price
     data_serializer = PurchaseSerializer(data = purchase_data)
     if not data_serializer.is_valid():
@@ -416,3 +425,43 @@ def update_category(request, category_id):
     data_serializer.save()
 
     return Response(data_serializer.data, status=200)
+
+
+@api_view(["GET"])
+def get_summary(request):
+    summary_obj = Sales.objects.aggregate(sale_quantity = Sum("quantity"))
+    returns_obj = Returns.objects.aggregate(return_quantity = Sum("quantity"))
+    data = summary_obj | returns_obj
+    return Response({"data":data})
+
+
+@api_view(["PUT"])
+def return_sales(request, product_id):
+
+    
+    try:
+        return_product = int(request.data.get("number"))
+        product = Sales.objects.get(id=product_id)
+        Product_detail = ProductDetails.objects.get(id=product.product_id.id)
+        product.quantity -= return_product
+        Product_detail.stock_quantity += return_product
+        product.save()
+        Product_detail.save()
+        Returns.objects.create(sales_id = product, quantity = return_product)
+        return Response({"Success": "Items marked as Return"}) 
+    except Sales.DoesNotExist:
+        return Response({"error": "product not found"}, status=404)
+
+
+@api_view(["POST"])
+def purchase_product(request):
+    data = request.data
+    product_id = data["product_id"]
+    product_obj = ProductDetails.objects.get(id = product_id)
+    product_obj.stock_quantity += data["quantity"]
+    log_seri = PurchaseLogsSerializer(data = data)
+    if not log_seri.is_valid():
+        return Response({"error": log_seri.errors})
+    product_obj.save()
+    log_seri.save()
+    return Response({"msg":"Log has been successfully created"})

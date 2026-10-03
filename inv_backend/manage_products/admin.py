@@ -81,3 +81,23 @@ class SuppliersClass(admin.ModelAdmin):
         "status",
         "created_at"
     )
+
+
+@admin.register(Returns)
+class ReturnsClass(admin.ModelAdmin):
+    list_display=(
+        "sales_id",
+        "quantity",
+        "return_date"
+    )
+
+
+@admin.register(PurchaseLogs)
+class PurchaseLogsClass(admin.ModelAdmin):
+    list_display=(
+        "product_id",
+        "supplier_id",
+        "quantity",
+        "purchase_price",
+        "total_amount"
+    )

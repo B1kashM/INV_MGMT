@@ -37,3 +37,9 @@ class ProductCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductCategory
         fields = "__all__"
+
+
+class PurchaseLogsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PurchaseLogs
+        fields = "__all__"

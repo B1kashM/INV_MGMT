@@ -74,6 +74,8 @@ const formatDate = (iso: string) => {
 const money = (v: string | number) =>
   `₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 
+const units = (n: number) => `${n} ${n === 1 ? "unit" : "units"}`;
+
 export default function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -88,6 +90,12 @@ export default function SalesPage() {
 
   const [toDelete, setToDelete] = useState<Sale | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Return popup
+  const [toReturn, setToReturn] = useState<Sale | null>(null);
+  const [returnQty, setReturnQty] = useState("1");
+  const [returning, setReturning] = useState(false);
+  const [returnError, setReturnError] = useState<string | null>(null);
 
   const productById = useMemo(() => {
     const m = new Map<number, ProductOption>();
@@ -225,9 +233,69 @@ export default function SalesPage() {
     }
   };
 
+  const openReturn = (s: Sale) => {
+    setToReturn(s);
+    setReturnQty("1");
+    setReturnError(null);
+  };
+
+  const closeReturn = () => {
+    if (!returning) setToReturn(null);
+  };
+
+  const returnQtyNum = Number(returnQty);
+  const returnQtyValid =
+    toReturn !== null &&
+    Number.isInteger(returnQtyNum) &&
+    returnQtyNum >= 1 &&
+    returnQtyNum <= toReturn.quantity;
+
+  const handleReturn = async () => {
+    if (!toReturn) return;
+    if (!returnQtyValid) {
+      setReturnError(`Enter a whole number between 1 and ${toReturn.quantity}.`);
+      return;
+    }
+
+    setReturning(true);
+    setReturnError(null);
+    try {
+      // Assumed URL: return_sales/<sale id>. Adjust if your urls.py differs
+      // (for example add a trailing slash).
+      const res = await fetch(`${API}/return_sales/${toReturn.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number: returnQtyNum }),
+      });
+      if (!res.ok) {
+        let message = `Server responded with ${res.status}`;
+        try {
+          const json = await res.json();
+          if (json?.error) message = String(json.error);
+        } catch {
+          if (res.status === 404) {
+            message = "Return endpoint not found (404). Check the return_sales URL.";
+          }
+        }
+        throw new Error(message);
+      }
+      setToReturn(null);
+      await loadAll();
+    } catch (e) {
+      setReturnError(e instanceof Error ? e.message : "Couldn't return items.");
+    } finally {
+      setReturning(false);
+    }
+  };
+
+  // A sale whose units have all been returned has quantity 0, so it's hidden from the list.
+  // Remove this filter if you'd rather keep those rows visible.
+  const visibleSales = useMemo(() => sales.filter((s) => s.quantity > 0), [sales]);
+
   const revenue = useMemo(
-    () => sales.filter((s) => s.status).reduce((sum, s) => sum + Number(s.total_amount), 0),
-    [sales]
+    () =>
+      visibleSales.filter((s) => s.status).reduce((sum, s) => sum + Number(s.total_amount), 0),
+    [visibleSales]
   );
 
   return (
@@ -238,7 +306,7 @@ export default function SalesPage() {
           <p className="text-sm text-slate-600">
             {loading
               ? "Loading…"
-              : `${sales.length} orders · ${money(revenue)} in completed sales`}
+              : `${visibleSales.length} orders · ${money(revenue)} in completed sales`}
           </p>
         </div>
         <button
@@ -265,7 +333,7 @@ export default function SalesPage() {
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
             <tr>
-              {["ID","Order ID", "Product", "Platform", "Qty", "Unit price", "Total", "Sold on", "Status"].map(
+              {["ID", "Product", "Platform", "Qty", "Unit price", "Total", "Sold on", "Status"].map(
                 (h) => (
                   <th key={h} className="whitespace-nowrap px-4 py-3 font-medium">
                     {h}
@@ -276,19 +344,19 @@ export default function SalesPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {!loading && sales.length === 0 && !error && (
+            {!loading && visibleSales.length === 0 && !error && (
               <tr>
                 <td colSpan={9} className="px-4 py-12 text-center text-slate-600">
                   No sales recorded. Use “Add sale” to record your first order.
                 </td>
               </tr>
             )}
-            {sales.map((s) => {
+            {visibleSales.map((s) => {
               const p = productById.get(s.product_id);
               return (
                 <tr key={s.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium text-slate-900">{s.id}</td>
-                  <td className="px-4 py-3 font-medium text-slate-900">{s.order_id}</td>
+                  {/* <td className="px-4 py-3 font-medium text-slate-900">{s.order_id}</td> */}
                   <td className="px-4 py-3 text-slate-700">
                     {p ? productLabel(p) : `Product #${s.product_id}`}
                   </td>
@@ -311,6 +379,15 @@ export default function SalesPage() {
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-right">
+                    {/* Only completed sales can be returned */}
+                    {s.status && (
+                      <button
+                        onClick={() => openReturn(s)}
+                        className="rounded px-2 py-1 text-amber-700 hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-600"
+                      >
+                        Return
+                      </button>
+                    )}
                     <button
                       onClick={() => openEdit(s)}
                       className="rounded px-2 py-1 text-teal-800 hover:bg-teal-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
@@ -455,6 +532,108 @@ export default function SalesPage() {
                 className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
               >
                 {saving ? "Saving…" : editing ? "Save changes" : "Add sale"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Return popup */}
+      {toReturn && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={closeReturn}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="return-modal-title"
+            className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="return-modal-title" className="text-lg font-semibold text-slate-900">
+              Return items
+            </h2>
+
+            <dl className="mt-3 space-y-1 rounded-md bg-slate-50 px-3 py-2 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-600">Sale ID</dt>
+                <dd className="font-medium text-slate-900">{toReturn.id}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-600">Product</dt>
+                <dd className="text-right text-slate-900">
+                  {(() => {
+                    const p = productById.get(toReturn.product_id);
+                    return p ? productLabel(p) : `Product #${toReturn.product_id}`;
+                  })()}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-600">Units sold</dt>
+                <dd className="font-medium text-slate-900">{toReturn.quantity}</dd>
+              </div>
+            </dl>
+
+            <div className="mt-4">
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-800">
+                  Number of units to return
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={toReturn.quantity}
+                  step={1}
+                  value={returnQty}
+                  onChange={(e) => setReturnQty(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !returning && handleReturn()}
+                  autoFocus
+                  className={inputCls}
+                />
+              </label>
+              <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
+                <span>Between 1 and {toReturn.quantity}</span>
+                <button
+                  type="button"
+                  onClick={() => setReturnQty(String(toReturn.quantity))}
+                  className="font-medium text-teal-700 hover:underline"
+                >
+                  Return all
+                </button>
+              </div>
+            </div>
+
+            {returnQtyValid && (
+              <p className="mt-3 text-sm text-slate-700">
+                {units(returnQtyNum)} will go back to stock. This sale will have{" "}
+                {units(toReturn.quantity - returnQtyNum)} left.
+              </p>
+            )}
+
+            {returnError && (
+              <p
+                role="alert"
+                className="mt-3 break-words rounded-md bg-red-50 px-3 py-2 text-sm text-red-800"
+              >
+                {returnError}
+              </p>
+            )}
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={closeReturn}
+                disabled={returning}
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReturn}
+                disabled={returning || !returnQtyValid}
+                className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                {returning ? "Returning…" : "Confirm return"}
               </button>
             </div>
           </div>
