@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import Sidebar from "../components/navbar";
 
 const API = "http://127.0.0.1:8000/product";
 // Used when a product has no reorder_level set
@@ -229,6 +230,7 @@ export default function DashboardPage() {
   }, [products, sales, purchases, suppliers, platforms]);
 
   return (
+    
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -454,5 +456,6 @@ export default function DashboardPage() {
         </div>
       )}
     </main>
+    
   );
 }

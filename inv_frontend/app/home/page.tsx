@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import BulkUploadModal from "./BulkUploadModal"; // keep BulkUploadModal.tsx in the same folder as this page
+
 
 const API = "http://127.0.0.1:8000/product";
 
@@ -15,7 +17,8 @@ type Product = {
   purchase_price: string;
   selling_price: string;
   stock_quantity: number;
-  reorder_level: number | null;
+  // reorder_level is a CharField on the backend, so it can arrive as text ("10") or empty
+  reorder_level: number | string | null;
   status: boolean;
   created_at: string;
   updated_at: string;
@@ -82,6 +85,31 @@ const toPayload = (f: FormState) => ({
   status: f.status,
 });
 
+// Turns {"sku": ["This field is required."]} (or a plain string) into readable text
+function describeError(err: unknown): string {
+  if (typeof err === "string") return err;
+  if (err && typeof err === "object") {
+    const parts = Object.entries(err as Record<string, unknown>).map(
+      ([field, msg]) => `${field}: ${Array.isArray(msg) ? msg.join(" ") : String(msg)}`
+    );
+    if (parts.length) return parts.join("; ");
+  }
+  return "Something went wrong.";
+}
+
+// Short message for a failed response (avoids dumping a whole HTML error page)
+async function readError(res: Response): Promise<string> {
+  try {
+    const json = await res.json();
+    if (json && typeof json === "object" && "error" in json) return describeError(json.error);
+    return describeError(json);
+  } catch {
+    return res.status === 404
+      ? "Endpoint not found (404). Check the URL."
+      : `Server responded with ${res.status}`;
+  }
+}
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,6 +123,11 @@ export default function ProductsPage() {
 
   const [toDelete, setToDelete] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [bulkOpen, setBulkOpen] = useState(false);
+
+  // Product IDs that already exist (the bulk upload uses these to spot duplicates)
+  const existingProductIds = useMemo(() => products.map((p) => p.product_id), [products]);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -151,10 +184,15 @@ export default function ProductsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(toPayload(form)),
       });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Server responded with ${res.status}`);
+      if (!res.ok) throw new Error(await readError(res));
+
+      // add_product answers 200 with {"error": {...}} when validation fails,
+      // so a successful status isn't enough on its own.
+      const body = await res.json().catch(() => null);
+      if (body && typeof body === "object" && "error" in body) {
+        throw new Error(describeError((body as { error: unknown }).error));
       }
+
       setModalOpen(false);
       await loadProducts();
     } catch (e) {
@@ -186,8 +224,11 @@ export default function ProductsPage() {
     }
   };
 
-  const isLow = (p: Product) =>
-    p.reorder_level !== null && p.stock_quantity <= p.reorder_level;
+  const isLow = (p: Product) => {
+    if (p.reorder_level === null || p.reorder_level === "") return false;
+    const level = Number(p.reorder_level);
+    return Number.isFinite(level) && p.stock_quantity <= level;
+  };
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -198,12 +239,20 @@ export default function ProductsPage() {
             {loading ? "Loading…" : `${products.length} in inventory`}
           </p>
         </div>
-        <button
-          onClick={openAdd}
-          className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
-        >
-          Add product
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setBulkOpen(true)}
+            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+          >
+            Bulk upload
+          </button>
+          <button
+            onClick={openAdd}
+            className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+          >
+            Add product
+          </button>
+        </div>
       </header>
 
       {error && (
@@ -244,8 +293,8 @@ export default function ProductsPage() {
           <tbody className="divide-y divide-slate-100">
             {!loading && products.length === 0 && !error && (
               <tr>
-                <td colSpan={11} className="px-4 py-12 text-center text-slate-600">
-                  No products yet. Use “Add product” to create your first one.
+                <td colSpan={12} className="px-4 py-12 text-center text-slate-600">
+                  No products yet. Use “Add product” or “Bulk upload” to create your first ones.
                 </td>
               </tr>
             )}
@@ -306,6 +355,14 @@ export default function ProductsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Bulk upload */}
+      <BulkUploadModal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        existingProductIds={existingProductIds}
+        onUploaded={loadProducts}
+      />
 
       {/* Add / Edit modal */}
       {modalOpen && (

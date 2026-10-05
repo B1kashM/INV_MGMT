@@ -1,10 +1,11 @@
 from django.db import models
+from datetime import date
 
 
 class ProductCategory(models.Model):
     category_name = models.CharField(max_length=300)
     status = models.BooleanField()
-    created_at =models.DateTimeField(auto_now_add=True)
+    created_at =models.DateTimeField(default= date.today)
 
 
 class ProductDetails(models.Model):
@@ -20,8 +21,8 @@ class ProductDetails(models.Model):
     stock_quantity = models.PositiveIntegerField()
     reorder_level = models.CharField(max_length=20, null=True, blank=True)
     status = models.BooleanField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default= date.today)
+    updated_at = models.DateTimeField(default= date.today)
 
 class Suppliers(models.Model):
     supplier_name = models.CharField(max_length=200)
@@ -29,7 +30,7 @@ class Suppliers(models.Model):
     supplier_email = models.CharField(max_length=50)
     supplier_address = models.CharField(max_length=400)
     status = models.BooleanField()
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default= date.today)
 
 class Purchases(models.Model):
     supplier_id = models.ForeignKey(Suppliers,on_delete=models.CASCADE)
@@ -37,7 +38,7 @@ class Purchases(models.Model):
     quantity = models.PositiveIntegerField()
     purchase_price = models.DecimalField(max_digits=20, decimal_places=2)
     total_amount = models.DecimalField(max_digits=20, decimal_places=2)
-    purchase_date = models.DateTimeField(auto_now_add=True)
+    purchase_date = models.DateTimeField(default= date.today)
 
 class Platforms(models.Model):
     platform_name = models.CharField(max_length=100)
@@ -50,14 +51,14 @@ class Sales(models.Model):
     quantity = models.PositiveIntegerField()
     selling_price = models.DecimalField(max_digits=20, decimal_places=2)
     total_amount = models.DecimalField(max_digits=20, decimal_places=2)
-    Sell_date = models.DateTimeField(auto_now_add=True)
+    Sell_date = models.DateTimeField(default= date.today)
     status = models.BooleanField()
 
 
 class Returns(models.Model):
     sales_id = models.ForeignKey(Sales, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
-    return_date = models.DateTimeField(auto_now_add=True)
+    return_date = models.DateTimeField(default= date.today)
 
 
 class PurchaseLogs(models.Model):
@@ -66,3 +67,4 @@ class PurchaseLogs(models.Model):
     quantity = models.PositiveIntegerField()
     supplier_id = models.ForeignKey(Suppliers, on_delete=models.CASCADE)
     total_amount = models.DecimalField(max_digits=20, decimal_places=2)
+    purchase_date = models.DateTimeField(default= date.today)

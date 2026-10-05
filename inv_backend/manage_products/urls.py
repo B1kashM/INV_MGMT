@@ -31,5 +31,7 @@ urlpatterns = [
     path("update_category/<int:category_id>", update_category),
     path("get_summary/", get_summary),
     path("return_sales/<int:product_id>", return_sales),
-    path("purchase_product/", purchase_product)
+    path("purchase_product/", purchase_product),
+    path("login_user/", login_user),
+    path("logout_user/", logout_user)
     ]

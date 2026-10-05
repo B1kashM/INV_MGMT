@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import BulkUploadSalesModal from "./Bulkuploadsalesmodal"; // keep BulkUploadSalesModal.tsx in the same folder as this page
+
 
 const API = "http://127.0.0.1:8000/product";
 
@@ -18,10 +20,12 @@ type Sale = {
 
 type ProductOption = {
   id: number;
+  product_id: number; // business product ID (used by bulk upload's product_code column)
   product_name: string;
   brand_name: string;
   size: string;
   selling_price: string;
+  stock_quantity: number;
 };
 
 type FormState = {
@@ -96,6 +100,15 @@ export default function SalesPage() {
   const [returnQty, setReturnQty] = useState("1");
   const [returning, setReturning] = useState(false);
   const [returnError, setReturnError] = useState<string | null>(null);
+
+  // Bulk upload popup (all of its logic lives in BulkUploadSalesModal.tsx)
+  const [bulkOpen, setBulkOpen] = useState(false);
+
+  // Order + product pairs that already exist (the bulk upload uses these to spot duplicates)
+  const existingSales = useMemo(
+    () => sales.map((s) => ({ order_id: s.order_id, product_id: s.product_id })),
+    [sales]
+  );
 
   const productById = useMemo(() => {
     const m = new Map<number, ProductOption>();
@@ -309,12 +322,20 @@ export default function SalesPage() {
               : `${visibleSales.length} orders · ${money(revenue)} in completed sales`}
           </p>
         </div>
-        <button
-          onClick={openAdd}
-          className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
-        >
-          Add sale
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setBulkOpen(true)}
+            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+          >
+            Bulk upload
+          </button>
+          <button
+            onClick={openAdd}
+            className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+          >
+            Add sale
+          </button>
+        </div>
       </header>
 
       {error && (
@@ -537,6 +558,15 @@ export default function SalesPage() {
           </div>
         </div>
       )}
+
+      {/* Bulk upload */}
+      <BulkUploadSalesModal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        products={products}
+        existingSales={existingSales}
+        onUploaded={loadAll}
+      />
 
       {/* Return popup */}
       {toReturn && (
