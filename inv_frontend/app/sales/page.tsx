@@ -106,7 +106,7 @@ type SortConfig = {
 } | null;
 
 /* -------------------------------------------------------------------------- */
-/* Sort Icon                                                                   */
+/* Sort Icon                                                                  */
 /* -------------------------------------------------------------------------- */
 
 function SortIcon({
@@ -117,9 +117,7 @@ function SortIcon({
   direction?: SortDirection;
 }) {
   if (!active) {
-    return (
-      ""
-    );
+    return null;
   }
 
   if (direction === "asc") {
@@ -619,7 +617,81 @@ export default function SalesPage() {
   );
 
   /* ------------------------------------------------------------------------ */
-  /* Sortable Header                                                          */
+  /* Download Sales CSV                                                       */
+  /* ------------------------------------------------------------------------ */
+
+  const downloadSalesCSV = () => {
+    if (sortedSales.length === 0) {
+      return;
+    }
+
+    const headers = [
+      "ID",
+      "Order ID",
+      "Product",
+      "Platform",
+      "Quantity",
+      "Unit Price",
+      "Total Amount",
+      "Sold On",
+      "Status",
+    ];
+
+    const escapeCSV = (value: string | number) => {
+      const stringValue = String(value ?? "");
+
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    };
+
+    const rows = sortedSales.map((s) => {
+      const p = productById.get(s.product_id);
+
+      const product = p
+        ? productLabel(p)
+        : `Product #${s.product_id}`;
+
+      return [
+        s.id,
+        s.order_id,
+        product,
+        s.platform_id,
+        s.quantity,
+        Number(s.selling_price).toFixed(2),
+        Number(s.total_amount).toFixed(2),
+        formatDate(s.Sell_date),
+        s.status ? "Completed" : "Cancelled",
+      ]
+        .map(escapeCSV)
+        .join(",");
+    });
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+      ...rows,
+    ].join("\n");
+
+    // BOM helps Excel correctly recognize UTF-8
+    const blob = new Blob(["\ufeff" + csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `sales_${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+  };
+
+  /* ------------------------------------------------------------------------ */
+  /* Sortable Header                                                           */
   /* ------------------------------------------------------------------------ */
 
   const SortableHeader = ({
@@ -705,7 +777,9 @@ export default function SalesPage() {
                   <input
                     type="search"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) =>
+                      setSearch(e.target.value)
+                    }
                     placeholder="Search by order ID"
                     aria-label="Search sales by order ID"
                     className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
@@ -717,6 +791,14 @@ export default function SalesPage() {
                   className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                 >
                   Bulk upload
+                </button>
+
+                <button
+                  onClick={downloadSalesCSV}
+                  disabled={sortedSales.length === 0}
+                  className="h-10 rounded-xl bg-green-600 px-4 text-sm font-medium text-white shadow-sm shadow-green-200 transition-all hover:bg-green-700 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+                >
+                  Download
                 </button>
 
                 <button

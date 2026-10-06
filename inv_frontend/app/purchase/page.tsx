@@ -104,10 +104,6 @@ type SortConfig = {
   direction: SortDirection;
 } | null;
 
-/* -------------------------------------------------------------------------- */
-/* Sort Icon                                                                   */
-/* -------------------------------------------------------------------------- */
-
 function SortIcon({
   active,
   direction,
@@ -117,8 +113,8 @@ function SortIcon({
 }) {
   if (!active) {
     return (
-        ""
-        );
+      ""
+    );
   }
 
   if (direction === "asc") {
@@ -127,7 +123,7 @@ function SortIcon({
         aria-hidden="true"
         viewBox="0 0 20 20"
         fill="none"
-        className="h-4 w-4 text-teal-700"
+        className="h-4 w-4 text-blue-600"
       >
         <path
           d="M10 15V5M6 9l4-4 4 4"
@@ -145,7 +141,7 @@ function SortIcon({
       aria-hidden="true"
       viewBox="0 0 20 20"
       fill="none"
-      className="h-4 w-4 text-teal-700"
+      className="h-4 w-4 text-blue-600"
     >
       <path
         d="M10 5v10m4-4-4 4-4-4"
@@ -157,10 +153,6 @@ function SortIcon({
     </svg>
   );
 }
-
-/* -------------------------------------------------------------------------- */
-/* Main Page                                                                   */
-/* -------------------------------------------------------------------------- */
 
 export default function PurchasePage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -175,9 +167,13 @@ export default function PurchasePage() {
   const [editing, setEditing] = useState<Purchase | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(
+    null
+  );
 
-  const [toDelete, setToDelete] = useState<Purchase | null>(null);
+  const [toDelete, setToDelete] = useState<Purchase | null>(
+    null
+  );
   const [deleting, setDeleting] = useState(false);
 
   const productById = useMemo(() => {
@@ -504,9 +500,14 @@ export default function PurchasePage() {
     [purchases]
   );
 
-  /* ------------------------------------------------------------------------ */
-  /* Sortable Header                                                          */
-  /* ------------------------------------------------------------------------ */
+  const totalQuantity = useMemo(
+    () =>
+      purchases.reduce(
+        (sum, p) => sum + Number(p.quantity),
+        0
+      ),
+    [purchases]
+  );
 
   const SortableHeader = ({
     label,
@@ -516,242 +517,371 @@ export default function PurchasePage() {
     sortKey: SortKey;
   }) => {
     const active = sortConfig?.key === sortKey;
-    const direction = active
-      ? sortConfig?.direction
-      : undefined;
-
-    const ariaSort = active
-      ? direction === "asc"
-        ? "ascending"
-        : "descending"
-      : "none";
-
-    const ariaLabel = active
-      ? `Sorted by ${label}, ${
-          direction === "asc"
-            ? "ascending"
-            : "descending"
-        }. Click to reverse.`
-      : `Sort by ${label}`;
 
     return (
       <th
-        aria-sort={ariaSort}
-        className="whitespace-nowrap px-4 py-3 font-medium"
+        onClick={() => handleSort(sortKey)}
+        className="cursor-pointer whitespace-nowrap border-b border-slate-200 px-4 py-4 text-left font-medium text-slate-500 select-none transition-colors hover:bg-blue-50/60"
+        title={`Sort by ${label}`}
+        aria-sort={
+          active
+            ? sortConfig.direction === "asc"
+              ? "ascending"
+              : "descending"
+            : "none"
+        }
       >
-        <button
-          type="button"
-          onClick={() => handleSort(sortKey)}
-          className="group flex w-full items-center gap-2 rounded text-left select-none hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-1"
-          aria-label={ariaLabel}
-          title={ariaLabel}
-        >
+        <div className="flex items-center gap-1.5">
           <span>{label}</span>
 
-          <span
-            className={`transition-colors ${
+          <SortIcon
+            active={active}
+            direction={
               active
-                ? "text-teal-700"
-                : "text-slate-400 group-hover:text-slate-600"
-            }`}
-          >
-            <SortIcon
-              active={active}
-              direction={direction}
-            />
-          </span>
-        </button>
+                ? sortConfig.direction
+                : undefined
+            }
+          />
+        </div>
       </th>
     );
   };
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">
-            Purchases
-          </h1>
+    <main className="min-h-screen bg-[#f6f6f6] px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
 
-          <p className="text-sm text-slate-600">
-            {loading
-              ? "Loading…"
-              : `${purchases.length} purchases · ${money(
-                  totalSpend
-                )} spent`}
-          </p>
-        </div>
+        {/* Page Header */}
+        <header className="mb-6">
+          <div className="rounded-2xl border border-white/80 bg-white px-5 py-5 shadow-[0_8px_30px_rgba(45,55,72,0.06)] sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
 
-        <button
-          onClick={openAdd}
-          className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
-        >
-          Add purchase
-        </button>
-      </header>
+              <div>
+                <div className="flex items-center gap-3">
 
-      {error && (
-        <div
-          role="alert"
-          className="mb-4 flex items-start justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
-        >
-          <span>{error}</span>
+                  {/* Purchase Icon */}
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 shadow-sm shadow-blue-200">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="h-5 w-5 text-white"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M4 7.5A2.5 2.5 0 016.5 5h11A2.5 2.5 0 0120 7.5v9a2.5 2.5 0 01-2.5 2.5h-11A2.5 2.5 0 014 16.5v-9Z"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                      />
 
-          <button
-            onClick={loadAll}
-            className="font-medium underline"
+                      <path
+                        d="M8 5V3.5M16 5V3.5M4 9h16"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                      />
+
+                      <path
+                        d="M8 13h8M8 16h5"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </div>
+
+                  <div>
+                    <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+                      Purchases
+                    </h1>
+
+                    <p className="mt-0.5 text-sm text-slate-500">
+                      {loading
+                        ? "Loading…"
+                        : `${purchases.length} purchases · ${money(
+                            totalSpend
+                          )} spent`}
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+
+              <button
+                onClick={openAdd}
+                className="h-10 rounded-xl bg-blue-600 px-4 text-sm font-medium text-white shadow-sm shadow-blue-200 transition-all hover:bg-blue-700 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              >
+                Add purchase
+              </button>
+
+            </div>
+          </div>
+        </header>
+
+        {/* Error */}
+        {error && (
+          <div
+            role="alert"
+            className="mb-5 flex items-start justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm"
           >
-            Try again
-          </button>
-        </div>
-      )}
+            <span>{error}</span>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="min-w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
-            <tr>
-              <SortableHeader
-                label="ID"
-                sortKey="id"
-              />
+            <button
+              onClick={loadAll}
+              className="font-medium underline underline-offset-2 hover:no-underline"
+            >
+              Try again
+            </button>
+          </div>
+        )}
 
-              <SortableHeader
-                label="Product"
-                sortKey="product"
-              />
+        {/* Purchase Table Card */}
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_30px_rgba(45,55,72,0.06)]">
 
-              <SortableHeader
-                label="Supplier"
-                sortKey="supplier_id"
-              />
+          {/* Card Header */}
+          <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
 
-              <SortableHeader
-                label="Qty"
-                sortKey="quantity"
-              />
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">
+                  Purchase list
+                </h2>
 
-              <SortableHeader
-                label="Unit cost"
-                sortKey="purchase_price"
-              />
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Manage and organize your stock purchases
+                </p>
+              </div>
 
-              <SortableHeader
-                label="Total"
-                sortKey="total_amount"
-              />
+              <div className="flex flex-wrap items-center gap-2">
 
-              <SortableHeader
-                label="Purchased on"
-                sortKey="purchase_date"
-              />
+                <div className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                  {totalQuantity} units
+                </div>
 
-              <th className="px-4 py-3 text-right font-medium">
-                Actions
-              </th>
-            </tr>
-          </thead>
+                <div className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                  {money(totalSpend)} spent
+                </div>
 
-          <tbody className="divide-y divide-slate-100">
-            {!loading &&
-              purchases.length === 0 &&
-              !error && (
+                <div className="hidden rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 sm:block">
+                  {purchases.length} purchases
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+
+              <thead className="bg-[#f8faff] text-slate-600">
                 <tr>
-                  <td
-                    colSpan={8}
-                    className="px-4 py-12 text-center text-slate-600"
-                  >
-                    No purchases recorded. Use “Add purchase”
-                    to log your first stock order.
-                  </td>
+
+                  <SortableHeader
+                    label="ID"
+                    sortKey="id"
+                  />
+
+                  <SortableHeader
+                    label="Product"
+                    sortKey="product"
+                  />
+
+                  <SortableHeader
+                    label="Supplier"
+                    sortKey="supplier_id"
+                  />
+
+                  <SortableHeader
+                    label="Qty"
+                    sortKey="quantity"
+                  />
+
+                  <SortableHeader
+                    label="Unit cost"
+                    sortKey="purchase_price"
+                  />
+
+                  <SortableHeader
+                    label="Total"
+                    sortKey="total_amount"
+                  />
+
+                  <SortableHeader
+                    label="Purchased on"
+                    sortKey="purchase_date"
+                  />
+
+                  <th className="border-b border-slate-200 px-4 py-4 text-right font-medium text-slate-500">
+                    Actions
+                  </th>
+
                 </tr>
-              )}
+              </thead>
 
-            {sortedPurchases.map((p) => {
-              const prod = productById.get(
-                p.product_id
-              );
+              <tbody className="divide-y divide-slate-100">
 
-              return (
-                <tr
-                  key={p.id}
-                  className="hover:bg-slate-50"
-                >
-                  <td className="px-4 py-3 text-slate-700">
-                    {p.id}
-                  </td>
+                {!loading &&
+                  purchases.length === 0 &&
+                  !error && (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="px-4 py-14 text-center text-slate-500"
+                      >
+                        No purchases recorded. Use
+                        {" “Add purchase” "}to log your
+                        first stock order.
+                      </td>
+                    </tr>
+                  )}
 
-                  <td className="px-4 py-3 font-medium text-slate-900">
-                    {prod
-                      ? productLabel(prod)
-                      : `${p.product_id}`}
-                  </td>
+                {sortedPurchases.map((p) => {
+                  const prod = productById.get(
+                    p.product_id
+                  );
 
-                  <td className="px-4 py-3 text-slate-700">
-                    {p.supplier_id}
-                  </td>
-
-                  <td className="px-4 py-3 tabular-nums text-slate-700">
-                    {p.quantity}
-                  </td>
-
-                  <td className="px-4 py-3 tabular-nums text-slate-700">
-                    {money(p.purchase_price)}
-                  </td>
-
-                  <td className="px-4 py-3 tabular-nums font-medium text-slate-900">
-                    {money(p.total_amount)}
-                  </td>
-
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-                    {formatDate(p.purchase_date)}
-                  </td>
-
-                  <td className="whitespace-nowrap px-4 py-3 text-right">
-                    <button
-                      onClick={() => openEdit(p)}
-                      className="rounded px-2 py-1 text-teal-800 hover:bg-teal-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+                  return (
+                    <tr
+                      key={p.id}
+                      className="group transition-colors hover:bg-[#f7f9ff]"
                     >
-                      Edit
-                    </button>
 
-                    <button
-                      onClick={() => setToDelete(p)}
-                      className="ml-1 rounded px-2 py-1 text-red-700 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                      {/* ID */}
+                      <td className="px-4 py-3.5 text-slate-500">
+                        {p.id}
+                      </td>
+
+                      {/* Product */}
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-3">
+
+                          <div>
+                            <p className="font-semibold text-slate-900">
+                              {prod
+                                ? productLabel(prod)
+                                : `${p.product_id}`}
+                            </p>
+
+                            {prod && (
+                              <p className="mt-0.5 text-xs text-slate-500">
+                                Product ID: {p.product_id}
+                              </p>
+                            )}
+                          </div>
+
+                        </div>
+                      </td>
+
+                      {/* Supplier */}
+                      <td className="px-4 py-3.5 text-slate-600">
+                        <p className="font-semibold text-slate-500">
+                          {p.supplier_id}
+                        </p>
+                      </td>
+
+                      {/* Quantity */}
+                      <td className="px-4 py-3.5 tabular-nums font-medium text-slate-700">
+                        {p.quantity}
+                      </td>
+
+                      {/* Unit Cost */}
+                      <td className="px-4 py-3.5 tabular-nums text-slate-600">
+                        {money(p.purchase_price)}
+                      </td>
+
+                      {/* Total */}
+                      <td className="px-4 py-3.5 tabular-nums font-semibold text-slate-900">
+                        {money(p.total_amount)}
+                      </td>
+
+                      {/* Date */}
+                      <td className="whitespace-nowrap px-4 py-3.5 text-slate-600">
+                        {formatDate(p.purchase_date)}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="whitespace-nowrap px-4 py-3.5 text-right">
+
+                        <button
+                          onClick={() => openEdit(p)}
+                          className="rounded-lg px-2.5 py-1.5 text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          onClick={() => setToDelete(p)}
+                          className="ml-1 rounded-lg px-2.5 py-1.5 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                        >
+                          Delete
+                        </button>
+
+                      </td>
+                    </tr>
+                  );
+                })}
+
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
-
-
+      {/* Add / Edit Modal */}
       {modalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px]"
           onClick={closeModal}
         >
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="purchase-modal-title"
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white bg-white p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2
-              id="purchase-modal-title"
-              className="mb-4 text-lg font-semibold text-slate-900"
-            >
-              {editing
-                ? "Edit purchase"
-                : "Add purchase"}
-            </h2>
 
+            {/* Modal Header */}
+            <div className="mb-6 flex items-center gap-3">
+
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="h-5 w-5"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12 5v14M5 12h14"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+
+              <div>
+                <h2
+                  id="purchase-modal-title"
+                  className="text-lg font-semibold text-slate-900"
+                >
+                  {editing
+                    ? "Edit purchase"
+                    : "Add purchase"}
+                </h2>
+
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {editing
+                    ? "Update purchase information"
+                    : "Record a new stock purchase"}
+                </p>
+              </div>
+
+            </div>
+
+            {/* Form */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
               <Field label="Product">
                 {products.length > 0 ? (
                   <select
@@ -779,7 +909,7 @@ export default function PurchasePage() {
                 ) : (
                   <input
                     type="number"
-                    placeholder="Product id"
+                    placeholder="Product ID"
                     value={form.product_id}
                     onChange={(e) =>
                       setField(
@@ -852,28 +982,42 @@ export default function PurchasePage() {
                 </Field>
               )}
 
-              <p className="self-end pb-2 text-sm text-slate-700 sm:text-right">
-                Total:{" "}
-                <span className="font-semibold text-slate-900">
-                  {money(formTotal)}
-                </span>
-              </p>
+              {/* Total */}
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
+                <div>
+                  <p className="text-xs font-medium text-slate-500">
+                    Total amount
+                  </p>
+
+                  <p className="mt-0.5 text-lg font-semibold text-slate-900">
+                    {money(formTotal)}
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700">
+                  {form.quantity || 0} units
+                </div>
+              </div>
+
             </div>
 
+            {/* Form Error */}
             {formError && (
               <p
                 role="alert"
-                className="mt-4 break-words rounded-md bg-red-50 px-3 py-2 text-sm text-red-800"
+                className="mt-4 break-words rounded-xl border border-red-100 bg-red-50 px-3 py-2.5 text-sm text-red-800"
               >
                 {formError}
               </p>
             )}
 
-            <div className="mt-6 flex justify-end gap-2">
+            {/* Modal Actions */}
+            <div className="mt-7 flex justify-end gap-2 border-t border-slate-100 pt-5">
+
               <button
                 onClick={closeModal}
                 disabled={saving}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -881,7 +1025,7 @@ export default function PurchasePage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
+                className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm shadow-blue-200 transition-colors hover:bg-blue-700 disabled:opacity-50"
               >
                 {saving
                   ? "Saving…"
@@ -889,18 +1033,16 @@ export default function PurchasePage() {
                   ? "Save changes"
                   : "Add purchase"}
               </button>
+
             </div>
           </div>
         </div>
       )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Delete Confirmation                                                */}
-      {/* ------------------------------------------------------------------ */}
-
+      {/* Delete Confirmation */}
       {toDelete && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px]"
           onClick={() =>
             !deleting && setToDelete(null)
           }
@@ -908,14 +1050,32 @@ export default function PurchasePage() {
           <div
             role="alertdialog"
             aria-modal="true"
-            className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+            className="w-full max-w-md rounded-2xl border border-white bg-white p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-lg font-semibold text-slate-900">
+
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-red-600">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                className="h-5 w-5"
+                aria-hidden="true"
+              >
+                <path
+                  d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+
+            <h2 className="mt-4 text-lg font-semibold text-slate-900">
               Delete purchase?
             </h2>
 
-            <p className="mt-2 text-sm text-slate-700">
+            <p className="mt-2 text-sm leading-6 text-slate-600">
               {toDelete.quantity} units (
               {money(toDelete.total_amount)}) will be
               removed from your purchase records. This
@@ -923,12 +1083,13 @@ export default function PurchasePage() {
             </p>
 
             <div className="mt-6 flex justify-end gap-2">
+
               <button
                 onClick={() =>
                   setToDelete(null)
                 }
                 disabled={deleting}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -936,12 +1097,13 @@ export default function PurchasePage() {
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+                className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm shadow-red-200 transition-colors hover:bg-red-700 disabled:opacity-50"
               >
                 {deleting
                   ? "Deleting…"
                   : "Delete purchase"}
               </button>
+
             </div>
           </div>
         </div>
@@ -950,10 +1112,8 @@ export default function PurchasePage() {
   );
 }
 
-
-
 const inputCls =
-  "w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-teal-700 focus:outline-none focus:ring-1 focus:ring-teal-700 disabled:bg-slate-100 disabled:text-slate-500";
+  "h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500";
 
 function Field({
   label,
@@ -964,7 +1124,7 @@ function Field({
 }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1 block font-medium text-slate-800">
+      <span className="mb-1.5 block font-medium text-slate-700">
         {label}
       </span>
 
