@@ -493,3 +493,10 @@ def login_user(request):
 def logout_user(request):
     request.user.auth_token.delete()
     return Response({"message": "Logged out."})
+
+
+@api_view(["GET"])
+def get_returns(request):
+    returns_obj = Returns.objects.all()
+    data_serializer = ReturnsSerializer(returns_obj, many=True)
+    return Response(data_serializer.data)

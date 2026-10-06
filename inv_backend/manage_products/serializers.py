@@ -43,3 +43,9 @@ class PurchaseLogsSerializer(serializers.ModelSerializer):
     class Meta:
         model = PurchaseLogs
         fields = "__all__"
+
+
+class ReturnsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Returns
+        fields = "__all__"
