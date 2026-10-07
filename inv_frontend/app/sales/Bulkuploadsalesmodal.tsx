@@ -535,37 +535,57 @@ export default function BulkUploadSalesModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
       onClick={close}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="bulk-sales-title"
-        className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-xl"
+        className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
-          <div>
-            <h2 id="bulk-sales-title" className="text-lg font-semibold text-slate-900">
-              Bulk upload sales
-            </h2>
-            <p className="text-sm text-slate-600">
-              Add many sales at once from a CSV file saved from Excel. Totals are calculated and
-              stock is reduced for you.
-            </p>
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-5">
+          <div className="flex items-center gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.8}
+                className="h-6 w-6"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 16V4m0 0L8 8m4-4 4 4M5 14v3a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-3"
+                />
+              </svg>
+            </div>
+
+            <div>
+              <h2 id="bulk-sales-title" className="text-xl font-bold tracking-tight text-slate-900">
+                Bulk upload sales
+              </h2>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Import multiple sales records quickly using a CSV file.
+              </p>
+            </div>
           </div>
+
           <button
             onClick={close}
             disabled={uploading}
             aria-label="Close"
-            className="rounded p-1 text-slate-600 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 disabled:opacity-50"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
           >
             <svg
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth={1.5}
+              strokeWidth={2}
               strokeLinecap="round"
               className="h-5 w-5"
               aria-hidden="true"
@@ -575,32 +595,73 @@ export default function BulkUploadSalesModal({
           </button>
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+        {/* Content */}
+        <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50/70 px-6 py-6">
           {result ? (
-            /* ---------------- Result ---------------- */
-            <div>
-              <p className="rounded-md bg-teal-100 px-4 py-3 text-sm font-medium text-teal-800">
-                {result.created} {result.created === 1 ? "sale was" : "sales were"} added.
-                {result.skipped > 0 &&
-                  ` ${result.skipped} ${result.skipped === 1 ? "row was" : "rows were"} skipped.`}
-              </p>
-              {result.issues.length > 0 && (
-                <ul className="mt-3 max-h-64 space-y-1 overflow-y-auto text-sm text-slate-700">
-                  {result.issues.map((i, n) => (
-                    <li key={n}>
-                      <span className="font-medium text-slate-900">
-                        {i.line ? `Row ${i.line}:` : "Row:"}
-                      </span>{" "}
-                      {i.message}
-                    </li>
-                  ))}
-                </ul>
-              )}
+            <div className="flex min-h-[360px] flex-col items-center justify-center">
+              <div className="w-full max-w-xl rounded-2xl border border-emerald-200 bg-white p-8 text-center shadow-sm">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    className="h-8 w-8"
+                    aria-hidden="true"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m5 12 4 4L19 6" />
+                  </svg>
+                </div>
+
+                <h3 className="mt-5 text-xl font-bold text-slate-900">Upload completed</h3>
+                <p className="mt-2 text-sm text-slate-500">
+                  Your sales data has been processed successfully.
+                </p>
+
+                <div className="mt-6 grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-emerald-50 px-4 py-4">
+                    <p className="text-2xl font-bold text-emerald-700">{result.created}</p>
+                    <p className="mt-1 text-xs font-medium text-emerald-700">Sales added</p>
+                  </div>
+                  <div className="rounded-xl bg-amber-50 px-4 py-4">
+                    <p className="text-2xl font-bold text-amber-700">{result.skipped}</p>
+                    <p className="mt-1 text-xs font-medium text-amber-700">Rows skipped</p>
+                  </div>
+                </div>
+
+                {result.issues.length > 0 && (
+                  <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-left">
+                    <p className="text-sm font-semibold text-red-800">Rows requiring attention</p>
+                    <ul className="mt-2 max-h-48 space-y-1.5 overflow-y-auto text-sm text-red-700">
+                      {result.issues.map((i, n) => (
+                        <li key={n}>
+                          <span className="font-semibold">
+                            {i.line ? `Row ${i.line}:` : "Row:"}
+                          </span>{" "}
+                          {i.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <>
-              {/* ---------------- Step 1: choose a file ---------------- */}
-              <div className="flex flex-wrap items-center gap-3">
+              {/* Step 1 */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center gap-3">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                    1
+                  </span>
+                  <div>
+                    <h3 className="font-semibold text-slate-900">Select CSV file</h3>
+                    <p className="text-sm text-slate-500">
+                      Upload a CSV exported from Excel or another spreadsheet.
+                    </p>
+                  </div>
+                </div>
+
                 <input
                   ref={fileInput}
                   type="file"
@@ -609,176 +670,314 @@ export default function BulkUploadSalesModal({
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) handleFile(file);
-                    e.target.value = ""; // allow choosing the same file again
+                    e.target.value = "";
                   }}
                 />
-                <button
-                  onClick={() => fileInput.current?.click()}
-                  disabled={uploading}
-                  className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2 disabled:opacity-50"
-                >
-                  {fileName ? "Choose another file" : "Choose CSV file"}
-                </button>
-                <button
-                  onClick={downloadTemplate}
-                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-800 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
-                >
-                  Download template
-                </button>
-                {fileName && <span className="text-sm text-slate-700">{fileName}</span>}
+
+                <div className="rounded-xl border-2 border-dashed border-blue-200 bg-blue-50/50 p-6 transition hover:border-blue-300 hover:bg-blue-50">
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-blue-600 shadow-sm ring-1 ring-blue-100">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.8}
+                        className="h-6 w-6"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 16V4m0 0L8 8m4-4 4 4M5 14v3a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-3"
+                        />
+                      </svg>
+                    </div>
+
+                    <p className="mt-3 text-sm font-semibold text-slate-800">
+                      {fileName ? fileName : "Choose a CSV file to get started"}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      CSV, CSV UTF-8, or CSV (MS-DOS)
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      <button
+                        onClick={() => fileInput.current?.click()}
+                        disabled={uploading}
+                        className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-50"
+                      >
+                        {fileName ? "Choose another file" : "Choose CSV file"}
+                      </button>
+
+                      <button
+                        onClick={downloadTemplate}
+                        className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={1.8}
+                            className="h-4 w-4"
+                            aria-hidden="true"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M12 4v11m0 0 4-4m-4 4-4-4M5 20h14"
+                            />
+                          </svg>
+                          Download template
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                  <summary className="cursor-pointer select-none font-semibold text-slate-700">
+                    What should the file look like?
+                  </summary>
+
+                  <p className="mt-3 text-sm leading-6 text-slate-500">
+                    One sale per row with a header row. In Excel use Save As → CSV (Comma delimited),
+                    CSV UTF-8, or CSV (MS-DOS). Column order does not matter. Any total_amount column
+                    is ignored because it is always calculated.
+                  </p>
+
+                  <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {COLUMN_HELP.map((c) => (
+                      <div key={c.key} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                        <code className="font-semibold text-blue-700">{c.key}</code>
+                        <span className="ml-2 text-slate-500">— {c.note}</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
               </div>
 
-              <details className="rounded-md border border-slate-200 px-4 py-2 text-sm">
-                <summary className="cursor-pointer font-medium text-slate-800">
-                  What should the file look like?
-                </summary>
-                <p className="mt-2 text-slate-600">
-                  One sale per row, with a header row. In Excel use Save As → CSV (Comma
-                  delimited), CSV UTF-8, or CSV (MS-DOS). Column order doesn&apos;t matter. Any
-                  total_amount column is ignored because it is always calculated.
-                </p>
-                <ul className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-slate-700 sm:grid-cols-2">
-                  {COLUMN_HELP.map((c) => (
-                    <li key={c.key}>
-                      <code className="font-medium text-slate-900">{c.key}</code> — {c.note}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-
               {parseError && (
-                <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                  {parseError}
-                </p>
+                <div
+                  role="alert"
+                  className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                >
+                  <span className="mt-0.5 font-bold">!</span>
+                  <p>{parseError}</p>
+                </div>
               )}
 
               {notice && (
-                <p className="rounded-md border border-amber-200 bg-amber-100 px-4 py-3 text-sm text-amber-800">
-                  {notice}
-                </p>
+                <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <span className="mt-0.5 font-bold">!</span>
+                  <p>{notice}</p>
+                </div>
               )}
 
-              {/* ---------------- Step 2: check and preview ---------------- */}
-              {analysis && analysis.missing.length > 0 && (
-                <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                  These required columns are missing from the file:{" "}
-                  <strong>{analysis.missing.join(", ")}</strong>. Download the template to see the
-                  expected headers.
-                </p>
-              )}
-
-              {analysis && analysis.ignored.length > 0 && (
-                <p className="text-sm text-slate-600">
-                  Ignored columns: {analysis.ignored.join(", ")}
-                </p>
-              )}
-
-              {tooMany && (
-                <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                  This file has {analysis!.rows.length.toLocaleString("en-IN")} rows. The limit is{" "}
-                  {MAX_ROWS.toLocaleString("en-IN")} per upload, so please split the file.
-                </p>
-              )}
-
-              {analysis && analysis.missing.length === 0 && (
-                <>
-                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-                    <span className="text-slate-700">
-                      <strong className="text-slate-900">{analysis.rows.length}</strong> rows
+              {/* Step 2 */}
+              {analysis && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-5 flex items-center gap-3">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                      2
                     </span>
-                    <span className="text-teal-800">
-                      <strong>{validCount}</strong> ready
-                    </span>
-                    <span className={invalidCount > 0 ? "text-red-700" : "text-slate-600"}>
-                      <strong>{invalidCount}</strong> with problems
-                    </span>
-                    {products.length === 0 && (
-                      <span className="text-slate-500">
-                        (Products couldn&apos;t be loaded, so product and stock are checked by the
-                        server.)
-                      </span>
-                    )}
+                    <div>
+                      <h3 className="font-semibold text-slate-900">Review imported data</h3>
+                      <p className="text-sm text-slate-500">
+                        Check validation results before uploading.
+                      </p>
+                    </div>
                   </div>
 
-                  {invalidCount > 0 && (
-                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-800">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={onlyProblems}
-                          onChange={(e) => setOnlyProblems(e.target.checked)}
-                          className="h-4 w-4 accent-teal-700"
-                        />
-                        Show only rows with problems
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={skipInvalid}
-                          onChange={(e) => setSkipInvalid(e.target.checked)}
-                          className="h-4 w-4 accent-teal-700"
-                        />
-                        Skip the problem rows and upload the rest
-                      </label>
+                  {analysis.missing.length > 0 && (
+                    <div
+                      role="alert"
+                      className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                    >
+                      These required columns are missing:{" "}
+                      <strong>{analysis.missing.join(", ")}</strong>. Download the template to see
+                      the expected headers.
                     </div>
                   )}
 
-                  <div className="max-h-80 overflow-auto rounded-md border border-slate-200">
-                    <table className="min-w-full text-left text-xs">
-                      <thead className="sticky top-0 border-b border-slate-200 bg-slate-50 text-slate-600">
-                        <tr>
-                          {["Row", "Order ID", "Product", "Platform", "Qty", "Price", "Sold on", "Status", "Check"].map(
-                            (h) => (
-                              <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">
-                                {h}
-                              </th>
-                            )
-                          )}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {shownRows.map((r) => (
-                          <tr key={r.line} className={r.error ? "bg-red-50" : undefined}>
-                            <td className="px-3 py-2 text-slate-600">{r.line}</td>
-                            <td className="px-3 py-2 text-slate-800">{r.cells.order_id}</td>
-                            <td className="px-3 py-2 text-slate-800">{r.productLabel}</td>
-                            <td className="px-3 py-2 text-slate-800">{r.cells.platform_id}</td>
-                            <td className="px-3 py-2 text-slate-800">{r.cells.quantity}</td>
-                            <td className="px-3 py-2 text-slate-800">{r.cells.selling_price}</td>
-                            <td className="whitespace-nowrap px-3 py-2 text-slate-800">
-                              {r.cells.Sell_date || "now"}
-                            </td>
-                            <td className="px-3 py-2 text-slate-800">
-                              {r.cells.status || "Completed"}
-                            </td>
-                            <td className="min-w-[14rem] px-3 py-2">
-                              {r.error ? (
-                                <span className="text-red-700">{r.error}</span>
-                              ) : (
-                                <span className="rounded-full bg-teal-100 px-2 py-0.5 font-medium text-teal-800">
-                                  OK
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {shownTotal > PREVIEW_LIMIT && (
-                    <p className="text-xs text-slate-500">
-                      Showing the first {PREVIEW_LIMIT} of {shownTotal} rows.
-                    </p>
+                  {analysis.ignored.length > 0 && (
+                    <div className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                      <span className="font-medium text-slate-700">Ignored columns:</span>{" "}
+                      {analysis.ignored.join(", ")}
+                    </div>
                   )}
-                </>
+
+                  {tooMany && (
+                    <div
+                      role="alert"
+                      className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                    >
+                      This file has {analysis.rows.length.toLocaleString("en-IN")} rows. The limit
+                      is {MAX_ROWS.toLocaleString("en-IN")} per upload, so please split the file.
+                    </div>
+                  )}
+
+                  {analysis.missing.length === 0 && (
+                    <>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                            Total rows
+                          </p>
+                          <p className="mt-1 text-2xl font-bold text-slate-900">
+                            {analysis.rows.length.toLocaleString("en-IN")}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                          <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">
+                            Ready to upload
+                          </p>
+                          <p className="mt-1 text-2xl font-bold text-emerald-700">
+                            {validCount.toLocaleString("en-IN")}
+                          </p>
+                        </div>
+
+                        <div
+                          className={`rounded-xl px-4 py-4 ${
+                            invalidCount > 0
+                              ? "border border-red-200 bg-red-50"
+                              : "border border-slate-200 bg-slate-50"
+                          }`}
+                        >
+                          <p
+                            className={`text-xs font-medium uppercase tracking-wide ${
+                              invalidCount > 0 ? "text-red-700" : "text-slate-500"
+                            }`}
+                          >
+                            Rows with problems
+                          </p>
+                          <p
+                            className={`mt-1 text-2xl font-bold ${
+                              invalidCount > 0 ? "text-red-700" : "text-slate-900"
+                            }`}
+                          >
+                            {invalidCount.toLocaleString("en-IN")}
+                          </p>
+                        </div>
+                      </div>
+
+                      {products.length === 0 && (
+                        <p className="mt-3 text-xs text-slate-500">
+                          Products could not be loaded, so product and stock validation will be
+                          handled by the server.
+                        </p>
+                      )}
+
+                      {invalidCount > 0 && (
+                        <div className="mt-5 flex flex-wrap gap-3">
+                          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              checked={onlyProblems}
+                              onChange={(e) => setOnlyProblems(e.target.checked)}
+                              className="h-4 w-4 rounded border-slate-300 accent-blue-600 focus:ring-blue-500"
+                            />
+                            Show only problem rows
+                          </label>
+
+                          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              checked={skipInvalid}
+                              onChange={(e) => setSkipInvalid(e.target.checked)}
+                              className="h-4 w-4 rounded border-slate-300 accent-blue-600 focus:ring-blue-500"
+                            />
+                            Skip problem rows and upload the rest
+                          </label>
+                        </div>
+                      )}
+
+                      <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
+                        <div className="max-h-80 overflow-auto">
+                          <table className="min-w-full text-left text-xs">
+                            <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-100 text-slate-600">
+                              <tr>
+                                {[
+                                  "Row",
+                                  "Order ID",
+                                  "Product",
+                                  "Platform",
+                                  "Qty",
+                                  "Price",
+                                  "Sold on",
+                                  "Status",
+                                  "Check",
+                                ].map((h) => (
+                                  <th
+                                    key={h}
+                                    className="whitespace-nowrap px-3 py-3 font-semibold"
+                                  >
+                                    {h}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+
+                            <tbody className="divide-y divide-slate-100 bg-white">
+                              {shownRows.map((r) => (
+                                <tr
+                                  key={r.line}
+                                  className={r.error ? "bg-red-50/70" : "transition hover:bg-slate-50"}
+                                >
+                                  <td className="px-3 py-2.5 font-medium text-slate-500">{r.line}</td>
+                                  <td className="px-3 py-2.5 font-medium text-slate-800">
+                                    {r.cells.order_id}
+                                  </td>
+                                  <td className="max-w-[16rem] truncate px-3 py-2.5 text-slate-700">
+                                    {r.productLabel}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-slate-700">{r.cells.platform_id}</td>
+                                  <td className="px-3 py-2.5 text-slate-700">{r.cells.quantity}</td>
+                                  <td className="px-3 py-2.5 text-slate-700">{r.cells.selling_price}</td>
+                                  <td className="whitespace-nowrap px-3 py-2.5 text-slate-700">
+                                    {r.cells.Sell_date || "now"}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-slate-700">
+                                    {r.cells.status || "Completed"}
+                                  </td>
+                                  <td className="min-w-[14rem] px-3 py-2.5">
+                                    {r.error ? (
+                                      <span className="inline-flex rounded-md bg-red-100 px-2 py-1 font-medium text-red-700">
+                                        {r.error}
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-1 font-semibold text-emerald-700">
+                                        <span>✓</span> OK
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {shownTotal > PREVIEW_LIMIT && (
+                        <p className="mt-2 text-xs text-slate-500">
+                          Showing the first {PREVIEW_LIMIT} of {shownTotal} rows.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
 
-              {/* ---------------- Server response ---------------- */}
+              {/* Server response */}
               {uploadError && (
-                <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                  <p className="break-words">{uploadError}</p>
+                <div
+                  role="alert"
+                  className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800"
+                >
+                  <p className="break-words font-medium">{uploadError}</p>
                   {serverIssues.length > 0 && (
-                    <ul className="mt-2 max-h-48 list-disc space-y-1 overflow-y-auto pl-5">
+                    <ul className="mt-3 max-h-48 list-disc space-y-1 overflow-y-auto pl-5">
                       {serverIssues.map((i, n) => (
                         <li key={n}>
                           {i.line ? `Row ${i.line}: ` : ""}
@@ -793,18 +992,19 @@ export default function BulkUploadSalesModal({
           )}
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4">
+        {/* Footer */}
+        <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-white px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
           {result ? (
             <>
               <button
                 onClick={reset}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-800 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Upload another file
               </button>
               <button
                 onClick={close}
-                className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800"
+                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
               >
                 Done
               </button>
@@ -814,14 +1014,15 @@ export default function BulkUploadSalesModal({
               <button
                 onClick={close}
                 disabled={uploading}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
               >
                 Cancel
               </button>
+
               <button
                 onClick={handleUpload}
                 disabled={!canUpload}
-                className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
+                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
               >
                 {uploading
                   ? "Uploading…"

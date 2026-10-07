@@ -234,7 +234,7 @@ export default function PlatformsPage() {
           </div>
 
           {/* Active Platforms */}
-          <div className="rounded-2xl bg-gradient-to-br from-green-500 to-green-600 p-5 text-white shadow-[0_8px_20px_rgba(79,70,229,0.16)]">
+          <div className="rounded-2xl bg-gradient-to-br from-green-600 to-green-500 p-5 text-white shadow-[0_8px_20px_rgba(79,70,229,0.16)]">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm font-medium text-green-100">

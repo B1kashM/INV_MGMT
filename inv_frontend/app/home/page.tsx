@@ -630,7 +630,7 @@ export default function ProductsPage() {
 
                 <button
                   onClick={() => setBulkOpen(true)}
-                  className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                  className="h-10 rounded-xl bg-black px-4 text-sm font-medium text-white shadow-sm shadow-black-100 transition-all hover:bg-black hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
                 >
                   Bulk upload
                 </button>
