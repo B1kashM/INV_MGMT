@@ -234,18 +234,18 @@ export default function PlatformsPage() {
           </div>
 
           {/* Active Platforms */}
-          <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-[0_2px_12px_rgba(15,23,42,0.04)]">
+          <div className="rounded-2xl bg-gradient-to-br from-green-500 to-green-600 p-5 text-white shadow-[0_8px_20px_rgba(79,70,229,0.16)]">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">
+                <p className="text-sm font-medium text-green-100">
                   Active platforms
                 </p>
 
-                <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
+                <p className="mt-2 text-3xl font-semibold tracking-tight text-white-200">
                   {loading ? "—" : activeCount}
                 </p>
 
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-green-100">
                   Currently enabled sales channels
                 </p>
               </div>
