@@ -3,7 +3,7 @@ import "./globals.css";
 import Sidebar from "./components/navbar";
 
 export const metadata: Metadata = {
-  title: "Inventory Manager",
+  title: "Trendloons",
   description: "Manage products, sales, purchases, suppliers and platforms",
 };
 
