@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-9&n5o5xh9-y5732120y)q%4*j17s4n#@4*fis8nwah(@4kgqg-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost","127.0.0.1"]
+ALLOWED_HOSTS = ["localhost","127.0.0.1",'inv-mgmt-wjsw.onrender.com']
 
 CORS_ALLOWED_ORIGINS=["http://localhost:3000"]
 # Application definition
