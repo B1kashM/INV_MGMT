@@ -27,6 +27,12 @@ type ProductOption = {
   stock_quantity: number;
 };
 
+type PlatformOption = {
+  id: number;
+  platform_name: string;
+  status: boolean;
+};
+
 type FormState = {
   order_id: string;
   product_id: string;
@@ -160,6 +166,7 @@ function SortIcon({
 export default function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
+  const [platforms, setPlatforms] = useState<PlatformOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -201,6 +208,17 @@ export default function SalesPage() {
     return m;
   }, [products]);
 
+  const platformById = useMemo(() => {
+    const m = new Map<number, string>();
+
+    platforms.forEach((p) => m.set(p.id, p.platform_name));
+
+    return m;
+  }, [platforms]);
+
+  const platformLabel = (id: number) =>
+    platformById.get(id) ?? `Platform #${id}`;
+
   const productLabel = (p: ProductOption) =>
     `${p.product_name} · ${p.brand_name} · ${p.size}`;
 
@@ -208,14 +226,18 @@ export default function SalesPage() {
     try {
       setError(null);
 
-      const [salesRes, productsRes] = await Promise.all([
-        fetch(`${API}/get_sales/`, {
-          cache: "no-store",
-        }),
-        fetch(`${API}/get_product/`, {
-          cache: "no-store",
-        }),
-      ]);
+      const [salesRes, productsRes, platformsRes] =
+        await Promise.all([
+          fetch(`${API}/get_sales/`, {
+            cache: "no-store",
+          }),
+          fetch(`${API}/get_product/`, {
+            cache: "no-store",
+          }),
+          fetch(`${API}/get_platform/`, {
+            cache: "no-store",
+          }),
+        ]);
 
       if (!salesRes.ok) {
         throw new Error(
@@ -227,6 +249,10 @@ export default function SalesPage() {
 
       if (productsRes.ok) {
         setProducts(await productsRes.json());
+      }
+
+      if (platformsRes.ok) {
+        setPlatforms(await platformsRes.json());
       }
     } catch (e) {
       setError(
@@ -308,7 +334,7 @@ export default function SalesPage() {
       !form.platform_id
     ) {
       setFormError(
-        "Order ID, product and platform ID are required."
+        "Order ID, product and platform are required."
       );
       return;
     }
@@ -554,8 +580,17 @@ export default function SalesPage() {
         }
 
         case "platform_id":
-          aValue = a.platform_id;
-          bValue = b.platform_id;
+          // Sort by platform name (falls back to "Platform #id")
+          aValue = (
+            platformById.get(a.platform_id) ??
+            `Platform #${a.platform_id}`
+          ).toLowerCase();
+
+          bValue = (
+            platformById.get(b.platform_id) ??
+            `Platform #${b.platform_id}`
+          ).toLowerCase();
+
           break;
 
         case "quantity":
@@ -603,7 +638,7 @@ export default function SalesPage() {
     });
 
     return sorted;
-  }, [filteredSales, sortConfig, productById]);
+  }, [filteredSales, sortConfig, productById, platformById]);
 
   const revenue = useMemo(
     () =>
@@ -654,7 +689,7 @@ export default function SalesPage() {
         s.id,
         s.order_id,
         product,
-        s.platform_id,
+        platformLabel(s.platform_id),
         s.quantity,
         Number(s.selling_price).toFixed(2),
         Number(s.total_amount).toFixed(2),
@@ -923,7 +958,7 @@ export default function SalesPage() {
                       </td>
 
                       <td className="px-4 py-3.5 text-slate-600">
-                        {s.platform_id}
+                        {platformLabel(s.platform_id)}
                       </td>
 
                       <td className="px-4 py-3.5 tabular-nums text-slate-600">
@@ -1063,18 +1098,52 @@ export default function SalesPage() {
                   )}
                 </Field>
 
-                <Field label="Platform ID">
-                  <input
-                    type="number"
-                    value={form.platform_id}
-                    onChange={(e) =>
-                      setField(
-                        "platform_id",
-                        e.target.value
-                      )
-                    }
-                    className={inputCls}
-                  />
+                <Field label="Platform">
+                  {platforms.length > 0 ? (
+                    <select
+                      value={form.platform_id}
+                      onChange={(e) =>
+                        setField(
+                          "platform_id",
+                          e.target.value
+                        )
+                      }
+                      className={inputCls}
+                    >
+                      <option value="">
+                        Select a platform
+                      </option>
+
+                      {platforms
+                        .filter(
+                          (pl) =>
+                            pl.status ||
+                            String(pl.id) ===
+                              form.platform_id
+                        )
+                        .map((pl) => (
+                          <option
+                            key={pl.id}
+                            value={pl.id}
+                          >
+                            {pl.platform_name}
+                          </option>
+                        ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="number"
+                      placeholder="Platform id"
+                      value={form.platform_id}
+                      onChange={(e) =>
+                        setField(
+                          "platform_id",
+                          e.target.value
+                        )
+                      }
+                      className={inputCls}
+                    />
+                  )}
                 </Field>
 
                 <Field label="Quantity">

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Sidebar from "../components/navbar";
 
@@ -73,19 +73,61 @@ type Purchase = {
   supplier_id: number;
   product_id: number; // references Product.id
 };
+type Return = {
+  id: number;
+  sales_id: number; // references Sale.id
+  quantity: number;
+  return_date: string;
+};
 type Category = { id: number; status: boolean };
 type Supplier = { id: number; supplier_name: string; status: boolean };
 type Platform = { id: number; platform_name: string; status: boolean };
 
-type Key = "products" | "sales" | "purchases" | "categories" | "suppliers" | "platforms";
+type Key = "products" | "sales" | "purchases" | "returns" | "categories" | "suppliers" | "platforms";
 const ENDPOINTS: Record<Key, string> = {
   products: "get_product",
   sales: "get_sales",
   purchases: "get_purchase",
+  // NOTE: change this if your list-returns endpoint has a different name
+  returns: "get_returns",
   categories: "get_category",
   suppliers: "get_supplier",
   platforms: "get_platform",
 };
+
+// ---- Period filter ---------------------------------------------------------
+type Period = "this_month" | "last_month" | "this_year" | "all_time";
+const PERIOD_OPTIONS: { value: Period; label: string }[] = [
+  { value: "this_month", label: "This month" },
+  { value: "last_month", label: "Last month" },
+  { value: "this_year", label: "This year" },
+  { value: "all_time", label: "All time" },
+];
+
+// Returns [start, end) of the selected period in the browser's local time
+function getRange(period: Period) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  if (period === "this_month") return { start: new Date(y, m, 1), end: new Date(y, m + 1, 1) };
+  if (period === "last_month") return { start: new Date(y, m - 1, 1), end: new Date(y, m, 1) };
+  if (period === "all_time") return { start: new Date(-8.64e15), end: new Date(8.64e15) };
+  return { start: new Date(y, 0, 1), end: new Date(y + 1, 0, 1) };
+}
+
+function periodLabel(period: Period) {
+  if (period === "all_time") return "All time";
+  const { start } = getRange(period);
+  return period === "this_year"
+    ? String(start.getFullYear())
+    : start.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+}
+
+const inRange = (iso: string, r: { start: Date; end: Date }) => {
+  const t = new Date(iso).getTime();
+  return !isNaN(t) && t >= r.start.getTime() && t < r.end.getTime();
+};
+// ---------------------------------------------------------------------------
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 const titleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
@@ -95,8 +137,94 @@ const formatDate = (iso: string) => {
 };
 const byDateDesc = (a: string, b: string) => new Date(b).getTime() - new Date(a).getTime();
 
-// Number(null) is 0, so treat null/undefined/"" as "missing" instead
-const toNumber = (v: unknown) => (v === null || v === undefined || v === "" ? NaN : Number(v));
+// Custom dropdown (native <select> menus can't be styled)
+function PeriodDropdown({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const current = PERIOD_OPTIONS.find((o) => o.value === value)!;
+
+  // Close on outside click or Escape
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="flex min-w-[11.5rem] items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm ring-1 ring-slate-200 transition hover:ring-[#6b83f2]/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8]"
+      >
+        <svg viewBox="0 0 20 20" className="h-4 w-4 text-[#4a63e8]" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+          <rect x="3" y="4.5" width="14" height="12" rx="2.5" />
+          <path d="M3 8.5h14M7 3v3M13 3v3" strokeLinecap="round" />
+        </svg>
+        <span className="flex-1 text-left">{current.label}</span>
+        <svg
+          viewBox="0 0 20 20"
+          className={`h-4 w-4 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          aria-hidden="true"
+        >
+          <path d="M5 7.5l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <ul
+          role="listbox"
+          className="absolute right-0 z-20 mt-2 w-64 overflow-hidden rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200"
+        >
+          {PERIOD_OPTIONS.map((o) => {
+            const selected = o.value === value;
+            return (
+              <li key={o.value} role="option" aria-selected={selected}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8] ${
+                    selected ? "bg-[#eef1fe]" : "hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="flex-1">
+                    <span className={`block text-sm font-medium ${selected ? "text-[#4a63e8]" : "text-slate-800"}`}>
+                      {o.label}
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      {o.value === "all_time" ? "Every record so far" : periodLabel(o.value)}
+                    </span>
+                  </span>
+                  {selected && (
+                    <svg viewBox="0 0 20 20" className="h-4 w-4 text-[#4a63e8]" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <path d="M4.5 10.5l3.5 3.5 7.5-8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function StatCard({
   label,
@@ -162,39 +290,25 @@ export default function DashboardPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [returns, setReturns] = useState<Return[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState<string[]>([]);
-  const [saleQuantity, setSaleQuantity] = useState<number | null>(null);
-  const [returnQuantity, setReturnQuantity] = useState<number | null>(null);
+  const [period, setPeriod] = useState<Period>("this_month");
 
   const load = useCallback(async () => {
     setLoading(true);
     const keys = Object.keys(ENDPOINTS) as Key[];
 
-    const [results, summary] = await Promise.all([
-      Promise.allSettled(
-        keys.map(async (k) => {
-          const res = await fetch(`${API}/${ENDPOINTS[k]}/`, { cache: "no-store" });
-          if (!res.ok) throw new Error(String(res.status));
-          return res.json();
-        })
-      ),
-      // get_summary returns { data: { sale_quantity, return_quantity } }
-      fetch(`${API}/get_summary/`, { cache: "no-store" })
-        .then((res) => {
-          if (!res.ok) throw new Error(String(res.status));
-          return res.json();
-        })
-        .then((json) => ({
-          ok: true,
-          sold: toNumber(json?.data?.sale_quantity),
-          returned: toNumber(json?.data?.return_quantity),
-        }))
-        .catch(() => ({ ok: false, sold: NaN, returned: NaN })),
-    ]);
+    const results = await Promise.allSettled(
+      keys.map(async (k) => {
+        const res = await fetch(`${API}/${ENDPOINTS[k]}/`, { cache: "no-store" });
+        if (!res.ok) throw new Error(String(res.status));
+        return res.json();
+      })
+    );
 
     const out = {} as Record<Key, unknown[]>;
     const bad: string[] = [];
@@ -206,17 +320,10 @@ export default function DashboardPage() {
       }
     });
 
-    setSaleQuantity(Number.isFinite(summary.sold) ? summary.sold : null);
-    setReturnQuantity(Number.isFinite(summary.returned) ? summary.returned : null);
-    if (!summary.ok) bad.push("summary");
-    else {
-      if (!Number.isFinite(summary.sold)) bad.push("sale_quantity");
-      if (!Number.isFinite(summary.returned)) bad.push("return_quantity");
-    }
-
     setProducts(out.products as Product[]);
     setSales(out.sales as Sale[]);
     setPurchases(out.purchases as Purchase[]);
+    setReturns(out.returns as Return[]);
     setCategories(out.categories as Category[]);
     setSuppliers(out.suppliers as Supplier[]);
     setPlatforms(out.platforms as Platform[]);
@@ -229,6 +336,7 @@ export default function DashboardPage() {
   }, [load]);
 
   const d = useMemo(() => {
+    const range = getRange(period);
     const productById = new Map(products.map((p) => [p.id, p]));
     const platformById = new Map(platforms.map((p) => [p.id, p.platform_name]));
     const supplierById = new Map(suppliers.map((s) => [s.id, s.supplier_name]));
@@ -237,10 +345,17 @@ export default function DashboardPage() {
       return p ? `${titleCase(p.product_name)} (${titleCase(p.color)}, ${p.size})` : `Product #${id}`;
     };
 
+    // Period-filtered data (sales by Sell_date, purchases by purchase_date, returns by return_date)
+    const salesInPeriod = sales.filter((s) => inRange(s.Sell_date, range));
+    const purchasesInPeriod = purchases.filter((p) => inRange(p.purchase_date, range));
+    const returnsInPeriod = returns.filter((r) => inRange(r.return_date, range));
+
     // Only completed sales (status = true) count toward totals
-    const completed = sales.filter((s) => s.status);
+    const completed = salesInPeriod.filter((s) => s.status);
     const salesTotal = completed.reduce((t, s) => t + Number(s.total_amount || 0), 0);
-    const purchasesTotal = purchases.reduce((t, p) => t + Number(p.total_amount || 0), 0);
+    const soldQuantity = completed.reduce((t, s) => t + Number(s.quantity || 0), 0);
+    const purchasesTotal = purchasesInPeriod.reduce((t, p) => t + Number(p.total_amount || 0), 0);
+    const returnQuantity = returnsInPeriod.reduce((t, r) => t + Number(r.quantity || 0), 0);
 
     const lowStock = products
       .filter((p) => p.status && p.stock_quantity <= (p.reorder_level ?? LOW_STOCK_DEFAULT))
@@ -255,22 +370,27 @@ export default function DashboardPage() {
       .sort((a, b) => b.value - a.value);
 
     return {
+      label: periodLabel(period),
       productName,
       platformById,
       supplierById,
       salesTotal,
+      soldQuantity,
       purchasesTotal,
+      returnQuantity,
       stockUnits: products.reduce((t, p) => t + p.stock_quantity, 0),
       activeProducts: products.filter((p) => p.status).length,
       lowStock,
       platformRows,
       platformMax: Math.max(1, ...platformRows.map((r) => r.value)),
-      recentSales: [...sales].sort((a, b) => byDateDesc(a.Sell_date, b.Sell_date)).slice(0, 5),
-      recentPurchases: [...purchases]
+      recentSales: [...salesInPeriod].sort((a, b) => byDateDesc(a.Sell_date, b.Sell_date)).slice(0, 5),
+      recentPurchases: [...purchasesInPeriod]
         .sort((a, b) => byDateDesc(a.purchase_date, b.purchase_date))
         .slice(0, 5),
     };
-  }, [products, sales, purchases, suppliers, platforms]);
+  }, [period, products, sales, purchases, returns, suppliers, platforms]);
+
+  const returnsFailed = failed.includes("returns");
 
   return (
     <div className="min-h-screen min-w-0 flex-1 bg-[#f6f6f6]">
@@ -280,13 +400,16 @@ export default function DashboardPage() {
             <h1 className="text-3xl font-semibold text-slate-900">Dashboard</h1>
             <p className="text-sm text-slate-600">A live summary of your inventory data.</p>
           </div>
-          <button
-            onClick={load}
-            disabled={loading}
-            className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8] disabled:opacity-50"
-          >
-            {loading ? "Refreshing…" : "Refresh"}
-          </button>
+          <div className="flex items-center gap-3">
+            <PeriodDropdown value={period} onChange={setPeriod} />
+            <button
+              onClick={load}
+              disabled={loading}
+              className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8] disabled:opacity-50"
+            >
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
         </header>
 
         {failed.length > 0 && (
@@ -330,12 +453,23 @@ export default function DashboardPage() {
               />
               <StatCard
                 label="Total sold items"
-                value={saleQuantity === null ? "—" : saleQuantity.toLocaleString("en-IN")}
-                note="From sales summary"
+                value={d.soldQuantity.toLocaleString("en-IN")}
+                note={d.label}
                 href="/sales"
               />
-              <StatCard label="Total sales" value={money(d.salesTotal)} href="/sales" theme="green" />
-              <StatCard label="Total purchases" value={money(d.purchasesTotal)} href="/purchase" />
+              <StatCard
+                label="Total sales"
+                value={money(d.salesTotal)}
+                note={d.label}
+                href="/sales"
+                theme="green"
+              />
+              <StatCard
+                label="Total purchases"
+                value={money(d.purchasesTotal)}
+                note={d.label}
+                href="/purchase"
+              />
               <StatCard
                 label="Suppliers"
                 value={String(suppliers.length)}
@@ -344,8 +478,8 @@ export default function DashboardPage() {
               />
               <StatCard
                 label="Returns"
-                value={returnQuantity === null ? "—" : returnQuantity.toLocaleString("en-IN")}
-                note="Total units returned"
+                value={returnsFailed ? "—" : d.returnQuantity.toLocaleString("en-IN")}
+                note={`Units returned · ${d.label}`}
                 href="/returns"
                 theme="red"
               />
@@ -354,7 +488,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <Panel title="Sales by platform">
                 {d.platformRows.length === 0 ? (
-                  <Empty>No completed sales yet.</Empty>
+                  <Empty>No completed sales in this period.</Empty>
                 ) : (
                   <ul className="space-y-4">
                     {d.platformRows.map((r, i) => (
@@ -414,7 +548,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <Panel title="Recent sales" action={{ label: "View all", href: "/sales" }}>
                 {d.recentSales.length === 0 ? (
-                  <Empty>No sales recorded yet.</Empty>
+                  <Empty>No sales recorded in this period.</Empty>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-left text-sm">
@@ -461,7 +595,7 @@ export default function DashboardPage() {
 
               <Panel title="Recent purchases" action={{ label: "View all", href: "/purchase" }}>
                 {d.recentPurchases.length === 0 ? (
-                  <Empty>No purchases recorded yet.</Empty>
+                  <Empty>No purchases recorded in this period.</Empty>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-left text-sm">
