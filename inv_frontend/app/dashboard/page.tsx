@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import Sidebar from "../components/navbar";
 
-const API = "http://127.0.0.1:8000/product";
+const API = "https://inv-mgmt-oq6c.onrender.com/product";
 // Used when a product has no reorder_level set
 const LOW_STOCK_DEFAULT = 10;
 

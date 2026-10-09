@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const API = "http://127.0.0.1:8000/product";
+const API = "https://inv-mgmt-oq6c.onrender.com/product";
 const MAX_ROWS = 2000; // keep in sync with MAX_ROWS in the Django view
 const PREVIEW_LIMIT = 300; // rows drawn in the preview table
 const MAX_INT = 2147483647; // PositiveIntegerField limit

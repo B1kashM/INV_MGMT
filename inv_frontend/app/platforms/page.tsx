@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-const API = "http://127.0.0.1:8000/product";
+const API = "https://inv-mgmt-oq6c.onrender.com/product";
 
 type Platform = {
   id: number;
