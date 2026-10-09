@@ -27,7 +27,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["localhost","127.0.0.1",'inv-mgmt-wjsw.onrender.com','inv-mgmt-oq6c.onrender.com']
 
-CORS_ALLOWED_ORIGINS=["http://localhost:3000"]
+CORS_ALLOWED_ORIGINS=["http://localhost:3000","https://inv-mgmt-mu.vercel.app"]
 # Application definition
 
 INSTALLED_APPS = [
