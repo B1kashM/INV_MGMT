@@ -159,22 +159,22 @@ function PeriodDropdown({ value, onChange }: { value: Period; onChange: (p: Peri
   }, [open]);
 
   return (
-    <div ref={wrapRef} className="relative">
+    <div ref={wrapRef} className="relative min-w-0 flex-1 sm:flex-none">
       <button
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="flex min-w-[11.5rem] items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm ring-1 ring-slate-200 transition hover:ring-[#6b83f2]/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8]"
+        className="flex w-full items-center gap-2 rounded-xl sm:w-auto sm:min-w-[11.5rem] bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm ring-1 ring-slate-200 transition hover:ring-[#6b83f2]/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8]"
       >
-        <svg viewBox="0 0 20 20" className="h-4 w-4 text-[#4a63e8]" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-[#4a63e8]" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
           <rect x="3" y="4.5" width="14" height="12" rx="2.5" />
           <path d="M3 8.5h14M7 3v3M13 3v3" strokeLinecap="round" />
         </svg>
-        <span className="flex-1 text-left">{current.label}</span>
+        <span className="min-w-0 flex-1 truncate text-left">{current.label}</span>
         <svg
           viewBox="0 0 20 20"
-          className={`h-4 w-4 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`}
           fill="none"
           stroke="currentColor"
           strokeWidth="1.8"
@@ -187,7 +187,7 @@ function PeriodDropdown({ value, onChange }: { value: Period; onChange: (p: Peri
       {open && (
         <ul
           role="listbox"
-          className="absolute right-0 z-20 mt-2 w-64 overflow-hidden rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200"
+          className="absolute left-0 z-20 mt-2 max-h-[70vh] w-[min(16rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200 sm:left-auto sm:right-0"
         >
           {PERIOD_OPTIONS.map((o) => {
             const selected = o.value === value;
@@ -199,7 +199,7 @@ function PeriodDropdown({ value, onChange }: { value: Period; onChange: (p: Peri
                     onChange(o.value);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8] ${
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition sm:py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8] ${
                     selected ? "bg-[#eef1fe]" : "hover:bg-slate-50"
                   }`}
                 >
@@ -212,7 +212,7 @@ function PeriodDropdown({ value, onChange }: { value: Period; onChange: (p: Peri
                     </span>
                   </span>
                   {selected && (
-                    <svg viewBox="0 0 20 20" className="h-4 w-4 text-[#4a63e8]" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-[#4a63e8]" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                       <path d="M4.5 10.5l3.5 3.5 7.5-8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   )}
@@ -400,12 +400,12 @@ export default function DashboardPage() {
             <h1 className="text-3xl font-semibold text-slate-900">Dashboard</h1>
             <p className="text-sm text-slate-600">A live summary of your inventory data.</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex w-full items-center gap-3 sm:w-auto">
             <PeriodDropdown value={period} onChange={setPeriod} />
             <button
               onClick={load}
               disabled={loading}
-              className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8] disabled:opacity-50"
+              className="shrink-0 rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8] disabled:opacity-50"
             >
               {loading ? "Refreshing…" : "Refresh"}
             </button>
