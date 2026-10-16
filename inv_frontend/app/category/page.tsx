@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-const API = "https://inv-mgmt-oq6c.onrender.com/product";
+const API =`${process.env.NEXT_PUBLIC_BACKEND_URL}/product`;
 
 type Category = {
   id: number;

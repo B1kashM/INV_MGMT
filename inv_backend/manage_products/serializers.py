@@ -49,3 +49,16 @@ class ReturnsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Returns
         fields = "__all__"
+
+
+
+class BulkProductRowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductDetails
+        fields = "__all__"
+        
+class BulkSalesRowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Sales
+        exclude=["total_amount"]
+        

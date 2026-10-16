@@ -34,5 +34,8 @@ urlpatterns = [
     path("purchase_product/", purchase_product),
     path("login_user/", login_user),
     path("logout_user/", logout_user),
-    path("get_returns/", get_returns)
+    path("get_returns/", get_returns),
+    path("bulk_add_product/", bulk_add_product),
+    path("bulk_add_sales/", bulk_add_sales)
+    
     ]

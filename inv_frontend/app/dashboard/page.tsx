@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Sidebar from "../components/navbar";
 
-const API = "https://inv-mgmt-oq6c.onrender.com/product";
+const API = `${process.env.NEXT_PUBLIC_BACKEND_URL}/product`;
 // Used when a product has no reorder_level set
 const LOW_STOCK_DEFAULT = 10;
 
@@ -474,7 +474,7 @@ export default function DashboardPage() {
                 label="Suppliers"
                 value={String(suppliers.length)}
                 note={`${suppliers.filter((s) => s.status).length} active`}
-                href="/suppliers"
+                href="/supplier"
               />
               <StatCard
                 label="Returns"

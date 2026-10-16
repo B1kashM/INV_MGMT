@@ -147,7 +147,7 @@ function NavContent({
           </span>
 
           <span className="text-lg font-semibold text-slate-900">
-            Pratap Muni
+            Manager
           </span>
         </div>
 
@@ -326,7 +326,7 @@ export default function Sidebar() {
         </button>
 
         <span className="text-base font-semibold text-slate-900">
-          Pratap Muni
+          Manager
         </span>
       </header>
 

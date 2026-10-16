@@ -9,7 +9,15 @@ from .serializers import *
 from rest_framework import status
 from .models import *
 from django.db.models import Sum
+from django.db import IntegrityError, transaction
+from rest_framework import serializers, status
+from .models import ProductCategory, ProductDetails
+from decimal import Decimal
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 
+
+from .models import Platforms, ProductDetails, Sales
 
 #HearBeat
 
@@ -500,3 +508,273 @@ def get_returns(request):
     returns_obj = Returns.objects.all()
     data_serializer = ReturnsSerializer(returns_obj, many=True)
     return Response(data_serializer.data)
+
+
+MAX_ROWS = 2000       # keep in sync with MAX_ROWS in BulkUploadModal.tsx
+MAX_INT = 2147483647  # PositiveIntegerField limit
+
+
+
+def _flatten(errs):
+    return "; ".join(
+        f"{field}: {' '.join(str(m) for m in (msgs if isinstance(msgs, list) else [msgs]))}"
+        for field, msgs in errs.items()
+    )
+
+
+@api_view(["POST"])
+def bulk_add_product(request):
+    rows = request.data
+    if not isinstance(rows, list) or not rows:
+        return Response(
+            {"message": "Send a non-empty JSON array of products."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if len(rows) > MAX_ROWS:
+        return Response(
+            {"message": f"Too many rows ({len(rows)}). The limit is {MAX_ROWS} per upload."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    skip_invalid = request.query_params.get("skip_invalid", "").lower() in ("true", "1", "yes")
+
+    errors = []   # [{"row": <1-based position in the array>, "message": "..."}]
+    cleaned = []  # [(row_number, validated_data)]
+
+    # 1) Field-level validation (no DB access)
+    for n, raw in enumerate(rows, start=1):
+        s = BulkProductRowSerializer(data=raw)
+        if s.is_valid():
+            cleaned.append((n, s.validated_data))
+        else:
+            errors.append({"row": n, "message": _flatten(s.errors)})
+
+    # 2) Two queries for the whole batch, instead of two per row
+    existing_ids = set(
+        ProductDetails.objects
+        .filter(product_id__in=[d["product_id"] for _, d in cleaned])
+        .values_list("product_id", flat=True)
+    )
+    valid_category_ids = set(
+        ProductCategory.objects
+        .filter(pk__in={d["category_id"] for _, d in cleaned})
+        .values_list("pk", flat=True)
+    )
+
+    valid = []
+    seen = {}  # product_id -> first valid row that used it
+    for n, d in cleaned:
+        pid = d["product_id"]
+        if pid in existing_ids:
+            errors.append({"row": n, "message": f"product_id {pid} already exists"})
+        elif pid in seen:
+            errors.append({"row": n, "message": f"product_id {pid} is repeated (see row {seen[pid]})"})
+        elif d["category_id"] not in valid_category_ids:
+            errors.append({"row": n, "message": f"category {d['category_id']} doesn't exist"})
+        else:
+            seen[pid] = n
+            valid.append((n, d))
+
+    errors.sort(key=lambda e: e["row"])
+
+    # 3) Reject the whole request, or skip bad rows, depending on the flag
+    if errors and not skip_invalid:
+        return Response(
+            {
+                "message": f"{len(errors)} row(s) have problems. Nothing was saved.",
+                "errors": errors,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not valid:
+        return Response(
+            {"message": "No valid rows to insert.", "errors": errors},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    objs = [
+        ProductDetails(
+            product_id=d["product_id"],
+            product_name=d["product_name"],
+            brand_name=d["brand_name"],
+            category_id_id=d["category_id"],  # FK column, avoids fetching the category
+            sku=d["sku"],
+            size=d["size"],
+            color=d["color"],
+            purchase_price=d["purchase_price"],
+            selling_price=d["selling_price"],
+            stock_quantity=d["stock_quantity"],
+            reorder_level=d.get("reorder_level"),
+            status=d["status"],
+        )
+        for _, d in valid
+    ]
+
+    # 4) One transaction, a few INSERT statements instead of one per row
+    try:
+        with transaction.atomic():
+            ProductDetails.objects.bulk_create(objs, batch_size=500)
+    except IntegrityError as e:
+        # e.g. another request inserted the same product_id between our check and the insert
+        return Response(
+            {"message": f"Database rejected the upload, nothing was saved: {e}"},
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    return Response(
+        {"created": len(objs), "skipped": len(errors), "errors": errors},
+        status=status.HTTP_201_CREATED,
+    )
+
+#sales bulk add
+
+
+
+MAX_ROWS = 2000       # keep in sync with the frontend
+MAX_INT = 2147483647
+
+PRODUCT_LOOKUP_FIELD = "product_id"
+
+
+def _flatten(errs):
+    return "; ".join(
+        f"{field}: {' '.join(str(m) for m in (msgs if isinstance(msgs, list) else [msgs]))}"
+        for field, msgs in errs.items()
+    )
+
+
+def _parse_sell_date(value):
+    """Accepts '2026-10-16' or '2026-10-16T14:30:00'. Blank returns now. Invalid returns None."""
+    if value in (None, ""):
+        return timezone.now()
+    value = str(value).strip()
+    dt = parse_datetime(value)
+    if dt is None:
+        d = parse_date(value)
+        if d is None:
+            return None
+        dt = timezone.datetime(d.year, d.month, d.day)
+    if timezone.is_naive(dt):
+        dt = timezone.make_aware(dt)
+    return dt
+
+
+@api_view(["POST"])
+def bulk_add_sales(request):
+    rows = request.data
+    if not isinstance(rows, list) or not rows:
+        return Response(
+            {"message": "Send a non-empty JSON array of sales."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if len(rows) > MAX_ROWS:
+        return Response(
+            {"message": f"Too many rows ({len(rows)}). The limit is {MAX_ROWS} per upload."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    skip_invalid = request.query_params.get("skip_invalid", "").lower() in ("true", "1", "yes")
+
+    errors = []
+    cleaned = []  # [(row_number, validated_data, sell_date)]
+
+    # 1) Field-level validation (no DB access)
+    for n, raw in enumerate(rows, start=1):
+        s = BulkSalesRowSerializer(data=raw)
+        if not s.is_valid():
+            errors.append({"row": n, "message": _flatten(s.errors)})
+            continue
+        d = raw
+        sell_date = _parse_sell_date(d.get("sell_date"))
+        if sell_date is None:
+            errors.append({"row": n, "message": "sell_date: use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS"})
+            continue
+        cleaned.append((n, d, sell_date))
+
+    # 2) Batch lookups: one query per table for the whole upload
+
+    print(d["platform_id"])
+    platform_ids = set(
+        Platforms.objects
+        .filter(pk__in={d["platform_id"] for _, d, _ in cleaned})
+        .values_list("pk", flat=True)
+    )
+    product_map = dict(  # uploaded product reference -> ProductDetails pk
+        ProductDetails.objects
+        .filter(**{f"{PRODUCT_LOOKUP_FIELD}__in": {d["product_id"] for _, d, _ in cleaned}})
+        .values_list(PRODUCT_LOOKUP_FIELD, "pk")
+    )
+    order_ids = {d["order_id"] for _, d, _ in cleaned}
+    existing_keys = set(
+        Sales.objects
+        .filter(order_id__in=order_ids)
+        .values_list("platform_id_id", "order_id", "product_id_id")
+    )
+    print(type(d["quantity"]), type(d["selling_price"]))
+    valid = []
+    seen = {}  # (platform, order, product) -> first row that used it
+    for n, d, sell_date in cleaned:
+        product_pk = product_map.get(d["product_id"])
+        key = (d["platform_id"], d["order_id"], product_pk)
+
+        if d["platform_id"] not in platform_ids:
+            errors.append({"row": n, "message": f"platform {d['platform_id']} doesn't exist"})
+        elif product_pk is None:
+            errors.append({"row": n, "message": f"product {d['product_id']} doesn't exist"})
+        elif key in existing_keys:
+            errors.append({"row": n, "message": f"order {d['order_id']} already has this product recorded"})
+        elif key in seen:
+            errors.append({"row": n, "message": f"order {d['order_id']} + product repeated (see row {seen[key]})"})
+        else:
+            seen[key] = n
+            total = d.get("total_amount")
+            if total is None:
+                total = (Decimal(d["quantity"]) * Decimal(d["selling_price"])).quantize(Decimal("0.01"))
+            valid.append((n, d, product_pk, total, sell_date))
+
+    errors.sort(key=lambda e: e["row"])
+
+    # 3) All-or-nothing unless skip_invalid is set
+    if errors and not skip_invalid:
+        return Response(
+            {
+                "message": f"{len(errors)} row(s) have problems. Nothing was saved.",
+                "errors": errors,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not valid:
+        return Response(
+            {"message": "No valid rows to insert.", "errors": errors},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    print(d["platform_id"])
+
+    objs = [
+        Sales(
+            platform_id_id=d["platform_id"],   # FK attname = field name + "_id"
+            product_id_id=product_pk,
+            order_id=d["order_id"],
+            quantity=d["quantity"],
+            selling_price=d["selling_price"],
+            total_amount=total,
+            Sell_date=sell_date,
+            status=d["status"],
+        )
+        for _, d, product_pk, total, sell_date in valid
+    ]
+
+    # 4) One transaction, batched INSERTs
+    try:
+        with transaction.atomic():
+            Sales.objects.bulk_create(objs, batch_size=500)
+    except IntegrityError as e:
+        return Response(
+            {"message": f"Database rejected the upload, nothing was saved: {e}"},
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    return Response(
+        {"created": len(objs), "skipped": len(errors), "errors": errors},
+        status=status.HTTP_201_CREATED,
+    )
