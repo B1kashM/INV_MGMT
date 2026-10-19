@@ -545,7 +545,17 @@ def bulk_add_product(request):
     for n, raw in enumerate(rows, start=1):
         s = BulkProductRowSerializer(data=raw)
         if s.is_valid():
-            cleaned.append((n, s.validated_data))
+            row_data = s.validated_data
+
+            # A serializer field backed by a ForeignKey may return a
+            # ProductCategory instance instead of its numeric primary key.
+            # Normalize it to an ID because the bulk-upload logic below
+            # performs ID lookups and assigns the raw FK column.
+            category_value = row_data.get("category_id")
+            if isinstance(category_value, ProductCategory):
+                row_data["category_id"] = category_value.pk
+
+            cleaned.append((n, row_data))
         else:
             errors.append({"row": n, "message": _flatten(s.errors)})
 
