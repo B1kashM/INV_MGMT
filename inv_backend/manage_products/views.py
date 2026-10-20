@@ -126,18 +126,56 @@ def add_sales(request):
     return Response(data_serializer.is_valid())
 
 
+
+
+
 @api_view(["DELETE"])
 def delete_sales(request, sales_id):
     try:
-        product = Sales.objects.get(id=sales_id)
-    except Sales.DoesNotExist:
-        return Response({"error":"Sales not found"}, status = 404)
+        with transaction.atomic():
+            try:
+                sale = Sales.objects.select_for_update().get(
+                    id=sales_id
+                )
+            except Sales.DoesNotExist:
+                return Response(
+                    {"error": "Sales not found"},
+                    status=404,
+                )
 
-  
+            # Get the associated product and lock its row.
+            try:
+                product = ProductDetails.objects.select_for_update().get(
+                    id=sale.product_id_id
+                )
+            except ProductDetails.DoesNotExist:
+                return Response(
+                    {"error": "Associated product not found"},
+                    status=404,
+                )
 
-    product.delete()
+            # Restore the quantity sold.
+            product.stock_quantity += sale.quantity
+            product.save(update_fields=["stock_quantity"])
 
-    return Response({"Result": "This Sale has been deleted"})
+            # Delete the sale.
+            sale.delete()
+
+        return Response(
+            {
+                "Result": "This Sale has been deleted",
+                "restored_quantity": sale.quantity,
+                "updated_stock": product.stock_quantity,
+            },
+            status=200,
+        )
+
+    except Exception:
+        return Response(
+            {"error": "Failed to delete sale"},
+            status=500,
+        )
+
 
 
 
@@ -670,6 +708,78 @@ def _parse_sell_date(value):
 
 
 
+
+from datetime import datetime, date, time
+from decimal import Decimal
+
+from django.db import transaction, IntegrityError
+from django.utils import timezone
+
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework import status
+
+
+def _parse_sell_date(value):
+    """
+    Convert uploaded date values into Python datetime objects.
+    Supports ISO dates, Excel-style date strings, and timestamps.
+    Does not substitute today's date when the value is invalid.
+    """
+    if value is None or str(value).strip() == "":
+        return None
+
+    if isinstance(value, datetime):
+        parsed = value
+
+    elif isinstance(value, date):
+        parsed = datetime.combine(value, time.min)
+
+    else:
+        value = str(value).strip()
+        parsed = None
+
+        formats = [
+            "%Y-%m-%d",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M:%S.%f",
+            "%Y-%m-%d %H:%M:%S",
+            "%d-%m-%Y",
+            "%d/%m/%Y",
+            "%m/%d/%Y",
+            "%d-%m-%Y %H:%M:%S",
+            "%d/%m/%Y %H:%M:%S",
+        ]
+
+        for fmt in formats:
+            try:
+                parsed = datetime.strptime(value, fmt)
+                break
+            except ValueError:
+                continue
+
+        # Support ISO timestamps with timezone offsets.
+        if parsed is None:
+            try:
+                parsed = datetime.fromisoformat(
+                    value.replace("Z", "+00:00")
+                )
+            except ValueError:
+                return None
+
+    # A date-only value becomes midnight on that date.
+    # Make the datetime timezone-aware if Django uses timezone support.
+    if timezone.is_naive(parsed) and timezone.is_aware(
+        timezone.now()
+    ):
+        parsed = timezone.make_aware(
+            parsed,
+            timezone.get_current_timezone(),
+        )
+
+    return parsed
+
+
 @api_view(["POST"])
 def bulk_add_sales(request):
     rows = request.data
@@ -698,7 +808,7 @@ def bulk_add_sales(request):
     errors = []
     cleaned = []
 
-    # 1) Field-level validation
+    # 1. Validate each row and parse the uploaded sale date.
     for n, raw in enumerate(rows, start=1):
         serializer = BulkSalesRowSerializer(data=raw)
 
@@ -709,22 +819,32 @@ def bulk_add_sales(request):
             })
             continue
 
-        d = raw
-        sell_date = _parse_sell_date(d.get("sell_date"))
+        # Use validated data for normalized serializer fields.
+        d = serializer.validated_data.copy()
+
+        # Preserve the original date key and parse its actual value.
+        raw_date = raw.get("sell_date")
+
+        # Also accept Sell_date if the frontend uses that key.
+        if raw_date is None:
+            raw_date = raw.get("Sell_date")
+
+        sell_date = _parse_sell_date(raw_date)
 
         if sell_date is None:
             errors.append({
                 "row": n,
                 "message": (
-                    "sell_date: use YYYY-MM-DD or "
-                    "YYYY-MM-DDTHH:MM:SS"
+                    "Invalid or missing sale date. Use "
+                    "YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, "
+                    "or an ISO timestamp."
                 ),
             })
             continue
 
         cleaned.append((n, d, sell_date))
 
-    # 2) Batch lookups
+    # 2. Batch lookups for platforms and products.
     platform_ids_to_check = {
         d["platform_id"] for _, d, _ in cleaned
     }
@@ -739,7 +859,7 @@ def bulk_add_sales(request):
         ).values_list("pk", flat=True)
     )
 
-    # Uploaded product reference -> actual ProductDetails primary key
+    # Map uploaded product references to database primary keys.
     product_map = dict(
         ProductDetails.objects.filter(
             **{
@@ -762,7 +882,7 @@ def bulk_add_sales(request):
         )
     )
 
-    # 3) Validate platforms, products, and duplicate sales
+    # 3. Validate references and duplicate sales.
     valid = []
     seen = {}
 
@@ -821,7 +941,7 @@ def bulk_add_sales(request):
 
     errors.sort(key=lambda e: e["row"])
 
-    # 4) All-or-nothing for existing validation errors
+    # 4. Reject existing validation errors unless skip_invalid is enabled.
     if errors and not skip_invalid:
         return Response(
             {
@@ -843,11 +963,9 @@ def bulk_add_sales(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # 5) Check stock, insert sales, and decrease stock atomically
+    # 5. Check stock, insert sales, and update inventory atomically.
     try:
         with transaction.atomic():
-
-            # Lock the products being sold where supported by the DB.
             product_pks = {
                 product_pk
                 for _, _, product_pk, _, _ in valid
@@ -859,10 +977,10 @@ def bulk_add_sales(request):
                     ProductDetails.objects
                     .select_for_update()
                     .filter(pk__in=product_pks)
+                    .order_by("pk")
                 )
             }
 
-            # Keep track of available stock per product.
             remaining_stock = {
                 pk: product.stock_quantity
                 for pk, product in locked_products.items()
@@ -870,11 +988,9 @@ def bulk_add_sales(request):
 
             stock_valid = []
 
-            # Check stock cumulatively for multiple sales of one product.
+            # Validate cumulative quantities for repeated products.
             for n, d, product_pk, total, sell_date in valid:
-                product = locked_products.get(product_pk)
-
-                if product is None:
+                if product_pk not in locked_products:
                     errors.append({
                         "row": n,
                         "message": "Product no longer exists.",
@@ -903,8 +1019,6 @@ def bulk_add_sales(request):
 
             errors.sort(key=lambda e: e["row"])
 
-            # With skip_invalid disabled, reject the entire upload
-            # if any row fails stock validation.
             if errors and not skip_invalid:
                 return Response(
                     {
@@ -926,7 +1040,7 @@ def bulk_add_sales(request):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Create sales records for valid rows only.
+            # Create sales using the exact parsed date from each row.
             sales_objects = [
                 Sales(
                     platform_id_id=d["platform_id"],
@@ -947,7 +1061,7 @@ def bulk_add_sales(request):
                 batch_size=500,
             )
 
-            # Update each product's stock exactly once.
+            # Deduct stock once per product.
             for pk, product in locked_products.items():
                 new_stock = remaining_stock[pk]
 
@@ -957,18 +1071,18 @@ def bulk_add_sales(request):
                         update_fields=["stock_quantity"]
                     )
 
-    except IntegrityError as e:
+    except IntegrityError:
         return Response(
             {
                 "message": (
                     "Database rejected the upload. "
-                    f"Nothing was saved: {e}"
+                    "Nothing was saved."
                 )
             },
             status=status.HTTP_409_CONFLICT,
         )
 
-    # 6) Return upload summary
+    # 6. Return the upload summary.
     return Response(
         {
             "created": len(stock_valid),

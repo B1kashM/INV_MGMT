@@ -51,7 +51,7 @@ class Sales(models.Model):
     quantity = models.PositiveIntegerField()
     selling_price = models.DecimalField(max_digits=20, decimal_places=2)
     total_amount = models.DecimalField(max_digits=20, decimal_places=2)
-    Sell_date = models.DateTimeField()
+    Sell_date = models.DateTimeField(null=False, blank=False)
     status = models.BooleanField()
 
 
