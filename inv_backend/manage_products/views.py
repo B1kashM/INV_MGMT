@@ -669,122 +669,311 @@ def _parse_sell_date(value):
     return dt
 
 
+
 @api_view(["POST"])
 def bulk_add_sales(request):
     rows = request.data
+
     if not isinstance(rows, list) or not rows:
         return Response(
             {"message": "Send a non-empty JSON array of sales."},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
     if len(rows) > MAX_ROWS:
         return Response(
-            {"message": f"Too many rows ({len(rows)}). The limit is {MAX_ROWS} per upload."},
+            {
+                "message": (
+                    f"Too many rows ({len(rows)}). "
+                    f"The limit is {MAX_ROWS} per upload."
+                )
+            },
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    skip_invalid = request.query_params.get("skip_invalid", "").lower() in ("true", "1", "yes")
+    skip_invalid = request.query_params.get(
+        "skip_invalid", ""
+    ).lower() in ("true", "1", "yes")
 
     errors = []
-    cleaned = []  # [(row_number, validated_data, sell_date)]
+    cleaned = []
 
-    # 1) Field-level validation (no DB access)
+    # 1) Field-level validation
     for n, raw in enumerate(rows, start=1):
-        s = BulkSalesRowSerializer(data=raw)
-        if not s.is_valid():
-            errors.append({"row": n, "message": _flatten(s.errors)})
+        serializer = BulkSalesRowSerializer(data=raw)
+
+        if not serializer.is_valid():
+            errors.append({
+                "row": n,
+                "message": _flatten(serializer.errors),
+            })
             continue
+
         d = raw
         sell_date = _parse_sell_date(d.get("sell_date"))
+
         if sell_date is None:
-            errors.append({"row": n, "message": "sell_date: use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS"})
+            errors.append({
+                "row": n,
+                "message": (
+                    "sell_date: use YYYY-MM-DD or "
+                    "YYYY-MM-DDTHH:MM:SS"
+                ),
+            })
             continue
+
         cleaned.append((n, d, sell_date))
 
-    # 2) Batch lookups: one query per table for the whole upload
+    # 2) Batch lookups
+    platform_ids_to_check = {
+        d["platform_id"] for _, d, _ in cleaned
+    }
 
-    print(d["platform_id"])
+    product_refs_to_check = {
+        d["product_id"] for _, d, _ in cleaned
+    }
+
     platform_ids = set(
-        Platforms.objects
-        .filter(pk__in={d["platform_id"] for _, d, _ in cleaned})
-        .values_list("pk", flat=True)
+        Platforms.objects.filter(
+            pk__in=platform_ids_to_check
+        ).values_list("pk", flat=True)
     )
-    product_map = dict(  # uploaded product reference -> ProductDetails pk
-        ProductDetails.objects
-        .filter(**{f"{PRODUCT_LOOKUP_FIELD}__in": {d["product_id"] for _, d, _ in cleaned}})
-        .values_list(PRODUCT_LOOKUP_FIELD, "pk")
+
+    # Uploaded product reference -> actual ProductDetails primary key
+    product_map = dict(
+        ProductDetails.objects.filter(
+            **{
+                f"{PRODUCT_LOOKUP_FIELD}__in": product_refs_to_check
+            }
+        ).values_list(PRODUCT_LOOKUP_FIELD, "pk")
     )
-    order_ids = {d["order_id"] for _, d, _ in cleaned}
+
+    order_ids = {
+        d["order_id"] for _, d, _ in cleaned
+    }
+
     existing_keys = set(
-        Sales.objects
-        .filter(order_id__in=order_ids)
-        .values_list("platform_id_id", "order_id", "product_id_id")
+        Sales.objects.filter(
+            order_id__in=order_ids
+        ).values_list(
+            "platform_id_id",
+            "order_id",
+            "product_id_id",
+        )
     )
-    print(type(d["quantity"]), type(d["selling_price"]))
+
+    # 3) Validate platforms, products, and duplicate sales
     valid = []
-    seen = {}  # (platform, order, product) -> first row that used it
+    seen = {}
+
     for n, d, sell_date in cleaned:
         product_pk = product_map.get(d["product_id"])
         key = (d["platform_id"], d["order_id"], product_pk)
 
         if d["platform_id"] not in platform_ids:
-            errors.append({"row": n, "message": f"platform {d['platform_id']} doesn't exist"})
+            errors.append({
+                "row": n,
+                "message": (
+                    f"Platform {d['platform_id']} doesn't exist."
+                ),
+            })
+
         elif product_pk is None:
-            errors.append({"row": n, "message": f"product {d['product_id']} doesn't exist"})
+            errors.append({
+                "row": n,
+                "message": (
+                    f"Product {d['product_id']} doesn't exist."
+                ),
+            })
+
         elif key in existing_keys:
-            errors.append({"row": n, "message": f"order {d['order_id']} already has this product recorded"})
+            errors.append({
+                "row": n,
+                "message": (
+                    f"Order {d['order_id']} already has "
+                    "this product recorded."
+                ),
+            })
+
         elif key in seen:
-            errors.append({"row": n, "message": f"order {d['order_id']} + product repeated (see row {seen[key]})"})
+            errors.append({
+                "row": n,
+                "message": (
+                    f"Order {d['order_id']} + product repeated "
+                    f"(see row {seen[key]})."
+                ),
+            })
+
         else:
             seen[key] = n
+
             total = d.get("total_amount")
+
             if total is None:
-                total = (Decimal(d["quantity"]) * Decimal(d["selling_price"])).quantize(Decimal("0.01"))
-            valid.append((n, d, product_pk, total, sell_date))
+                total = (
+                    Decimal(str(d["quantity"]))
+                    * Decimal(str(d["selling_price"]))
+                ).quantize(Decimal("0.01"))
+
+            valid.append(
+                (n, d, product_pk, total, sell_date)
+            )
 
     errors.sort(key=lambda e: e["row"])
 
-    # 3) All-or-nothing unless skip_invalid is set
+    # 4) All-or-nothing for existing validation errors
     if errors and not skip_invalid:
         return Response(
             {
-                "message": f"{len(errors)} row(s) have problems. Nothing was saved.",
+                "message": (
+                    f"{len(errors)} row(s) have problems. "
+                    "Nothing was saved."
+                ),
                 "errors": errors,
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
+
     if not valid:
         return Response(
-            {"message": "No valid rows to insert.", "errors": errors},
+            {
+                "message": "No valid rows to insert.",
+                "errors": errors,
+            },
             status=status.HTTP_400_BAD_REQUEST,
         )
-    print(d["platform_id"])
 
-    objs = [
-        Sales(
-            platform_id_id=d["platform_id"],   # FK attname = field name + "_id"
-            product_id_id=product_pk,
-            order_id=d["order_id"],
-            quantity=d["quantity"],
-            selling_price=d["selling_price"],
-            total_amount=total,
-            Sell_date=sell_date,
-            status=d["status"],
-        )
-        for _, d, product_pk, total, sell_date in valid
-    ]
-
-    # 4) One transaction, batched INSERTs
+    # 5) Check stock, insert sales, and decrease stock atomically
     try:
         with transaction.atomic():
-            Sales.objects.bulk_create(objs, batch_size=500)
+
+            # Lock the products being sold where supported by the DB.
+            product_pks = {
+                product_pk
+                for _, _, product_pk, _, _ in valid
+            }
+
+            locked_products = {
+                product.pk: product
+                for product in (
+                    ProductDetails.objects
+                    .select_for_update()
+                    .filter(pk__in=product_pks)
+                )
+            }
+
+            # Keep track of available stock per product.
+            remaining_stock = {
+                pk: product.stock_quantity
+                for pk, product in locked_products.items()
+            }
+
+            stock_valid = []
+
+            # Check stock cumulatively for multiple sales of one product.
+            for n, d, product_pk, total, sell_date in valid:
+                product = locked_products.get(product_pk)
+
+                if product is None:
+                    errors.append({
+                        "row": n,
+                        "message": "Product no longer exists.",
+                    })
+                    continue
+
+                quantity = d["quantity"]
+                available = remaining_stock[product_pk]
+
+                if quantity > available:
+                    errors.append({
+                        "row": n,
+                        "message": (
+                            f"Insufficient stock for product "
+                            f"{d['product_id']}. Available stock: "
+                            f"{available}, requested: {quantity}."
+                        ),
+                    })
+                    continue
+
+                remaining_stock[product_pk] -= quantity
+
+                stock_valid.append(
+                    (n, d, product_pk, total, sell_date)
+                )
+
+            errors.sort(key=lambda e: e["row"])
+
+            # With skip_invalid disabled, reject the entire upload
+            # if any row fails stock validation.
+            if errors and not skip_invalid:
+                return Response(
+                    {
+                        "message": (
+                            f"{len(errors)} row(s) have problems. "
+                            "Nothing was saved."
+                        ),
+                        "errors": errors,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if not stock_valid:
+                return Response(
+                    {
+                        "message": "No valid rows to insert.",
+                        "errors": errors,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Create sales records for valid rows only.
+            sales_objects = [
+                Sales(
+                    platform_id_id=d["platform_id"],
+                    product_id_id=product_pk,
+                    order_id=d["order_id"],
+                    quantity=d["quantity"],
+                    selling_price=d["selling_price"],
+                    total_amount=total,
+                    Sell_date=sell_date,
+                    status=d["status"],
+                )
+                for _, d, product_pk, total, sell_date
+                in stock_valid
+            ]
+
+            Sales.objects.bulk_create(
+                sales_objects,
+                batch_size=500,
+            )
+
+            # Update each product's stock exactly once.
+            for pk, product in locked_products.items():
+                new_stock = remaining_stock[pk]
+
+                if new_stock != product.stock_quantity:
+                    product.stock_quantity = new_stock
+                    product.save(
+                        update_fields=["stock_quantity"]
+                    )
+
     except IntegrityError as e:
         return Response(
-            {"message": f"Database rejected the upload, nothing was saved: {e}"},
+            {
+                "message": (
+                    "Database rejected the upload. "
+                    f"Nothing was saved: {e}"
+                )
+            },
             status=status.HTTP_409_CONFLICT,
         )
 
+    # 6) Return upload summary
     return Response(
-        {"created": len(objs), "skipped": len(errors), "errors": errors},
+        {
+            "created": len(stock_valid),
+            "skipped": len(errors),
+            "errors": errors,
+        },
         status=status.HTTP_201_CREATED,
     )
