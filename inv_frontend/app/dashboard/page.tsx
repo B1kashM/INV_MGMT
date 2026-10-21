@@ -9,41 +9,29 @@ const API = `${process.env.NEXT_PUBLIC_BACKEND_URL}/product`;
 // Used when a product has no reorder_level set
 const LOW_STOCK_DEFAULT = 10;
 
-// Colour theme (soft indigo-blue accents on a light grey page, white rounded cards)
-const BAR_COLORS = ["bg-[#6b83f2]", "bg-[#88ddf2]", "bg-[#b57fd9]"];
+// ---- Colour theme -----------------------------------------------------------
+// Bento cards on a blue-grey page: white cards plus coloured blocks.
+// Change the hex codes here to recolour the whole page.
+const GREEN = "#0a9f58";
+const LIGHT_GREEN = "#dcefc3";
+const ORANGE = "#f0400f";
+const BLUE = "#1f6cff";
+const RED = "#d92d2d"; // Returns card
+const AMBER = "#ffb21e"; // Items sold card
 
-// Gradient themes for the stat cards (change the hex codes here to recolour a card)
-const CARD_THEMES = {
-  // Stocks: blue  #4a63e8 -> #6a80f2
-  blue: {
-    box: "bg-gradient-to-br from-[#4a63e8] to-[#6a80f2]",
-    label: "text-white",
-    value: "text-white",
-    note: "text-white",
-  },
-  // Sales: green  #15803d -> #2f9e5b
-  green: {
-    box: "bg-gradient-to-br from-[#15803d] to-[#2f9e5b]",
-    label: "text-white",
-    value: "text-white",
-    note: "text-white",
-  },
-  // Returns: red  #b91c1c -> #ef4444
-  red: {
-    box: "bg-gradient-to-br from-[#b91c1c] to-[#ef4444]",
-    label: "text-white",
-    value: "text-white",
-    note: "text-white",
-  },
-  // Low stock: faded red  #fecaca -> #fee2e2 (dark text so it stays readable)
-  fadedRed: {
-    box: "bg-gradient-to-br from-[#fecaca] to-[#fee2e2]",
-    label: "text-red-900",
-    value: "text-red-800",
-    note: "text-red-800",
-  },
-} as const;
-type CardTheme = keyof typeof CARD_THEMES;
+const CARD = "rounded-[28px] bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.05),0_14px_30px_-20px_rgba(15,23,42,0.25)]";
+const TINTS = [
+  "bg-emerald-100 text-emerald-700",
+  "bg-sky-100 text-sky-700",
+  "bg-violet-100 text-violet-700",
+  "bg-amber-100 text-amber-700",
+  "bg-rose-100 text-rose-700",
+];
+const HATCH = {
+  backgroundColor: "#f3f3f3",
+  backgroundImage: "repeating-linear-gradient(135deg, rgba(0,0,0,0.045) 0 2px, transparent 2px 8px)",
+};
+// ---------------------------------------------------------------------------
 
 type Product = {
   id: number;
@@ -104,8 +92,10 @@ const PERIOD_OPTIONS: { value: Period; label: string }[] = [
   { value: "all_time", label: "All time" },
 ];
 
+type Range = { start: Date; end: Date };
+
 // Returns [start, end) of the selected period in the browser's local time
-function getRange(period: Period) {
+function getRange(period: Period): Range {
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth();
@@ -113,6 +103,19 @@ function getRange(period: Period) {
   if (period === "last_month") return { start: new Date(y, m - 1, 1), end: new Date(y, m, 1) };
   if (period === "all_time") return { start: new Date(-8.64e15), end: new Date(8.64e15) };
   return { start: new Date(y, 0, 1), end: new Date(y + 1, 0, 1) };
+}
+
+// The period right before the selected one (used for the +/- change chips)
+function getPrevRange(period: Period): { range: Range; label: string } | null {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  if (period === "this_month") return { range: getRange("last_month"), label: "vs last month" };
+  if (period === "last_month")
+    return { range: { start: new Date(y, m - 2, 1), end: new Date(y, m - 1, 1) }, label: "vs month before" };
+  if (period === "this_year")
+    return { range: { start: new Date(y - 1, 0, 1), end: new Date(y, 0, 1) }, label: "vs last year" };
+  return null;
 }
 
 function periodLabel(period: Period) {
@@ -123,7 +126,7 @@ function periodLabel(period: Period) {
     : start.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 }
 
-const inRange = (iso: string, r: { start: Date; end: Date }) => {
+const inRange = (iso: string, r: Range) => {
   const t = new Date(iso).getTime();
   return !isNaN(t) && t >= r.start.getTime() && t < r.end.getTime();
 };
@@ -136,12 +139,83 @@ const formatDate = (iso: string) => {
   return isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-IN", { dateStyle: "medium" });
 };
 const byDateDesc = (a: string, b: string) => new Date(b).getTime() - new Date(a).getTime();
+const initials = (s: string) =>
+  s
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase() || "?";
+const pctChange = (cur: number, prev: number) => (prev > 0 ? ((cur - prev) / prev) * 100 : null);
+
+// ---- Small UI pieces -------------------------------------------------------
+
+const ICONS = {
+  arrow: "M6 14L14 6M7.5 6H14v6.5",
+  sales: "M3 14l4.5-4.5 3 3L17 6M12.5 6H17v4.5",
+  purchase: "M4.5 7h11l-1 9h-9l-1-9zM7.5 7a2.5 2.5 0 015 0",
+  product: "M3.5 6.5L10 3l6.5 3.5v7L10 17l-6.5-3.5v-7zM3.5 6.5L10 10l6.5-3.5M10 10v7",
+} as const;
+
+function Icon({ d, className = "h-4 w-4" }: { d: string; className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" className={className} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+      <path d={d} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// Round arrow button in the top-right corner of a card
+function ArrowLink({ href, label, tone = "light" }: { href: string; label: string; tone?: "light" | "dark" }) {
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 ${
+        tone === "dark" ? "bg-white/20 text-white hover:bg-white/30 focus-visible:ring-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`}
+    >
+      <Icon d={ICONS.arrow} />
+    </Link>
+  );
+}
+
+// Solid pill with the change vs the previous period (green = up, red-orange = down)
+function Chip({ pct, show, title }: { pct: number | null; show: boolean; title?: string }) {
+  if (!show) return null;
+  if (pct === null)
+    return (
+      <span title="No earlier data to compare" className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
+        —
+      </span>
+    );
+  const up = pct >= 0;
+  return (
+    <span
+      title={title}
+      className="rounded-full px-3 py-1 text-xs font-bold tabular-nums text-white"
+      style={{ backgroundColor: up ? GREEN : ORANGE }}
+    >
+      {up ? "+" : "−"}
+      {Math.abs(pct).toFixed(1)}%
+    </span>
+  );
+}
 
 // Custom dropdown (native <select> menus can't be styled)
-function PeriodDropdown({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
+function Select<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: { value: T; label: string; hint?: string }[];
+  onChange: (v: T) => void;
+}) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const current = PERIOD_OPTIONS.find((o) => o.value === value)!;
+  const current = options.find((o) => o.value === value) ?? options[0];
 
   // Close on outside click or Escape
   useEffect(() => {
@@ -159,22 +233,18 @@ function PeriodDropdown({ value, onChange }: { value: Period; onChange: (p: Peri
   }, [open]);
 
   return (
-    <div ref={wrapRef} className="relative min-w-0 flex-1 sm:flex-none">
+    <div ref={wrapRef} className="relative shrink-0">
       <button
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 rounded-xl sm:w-auto sm:min-w-[11.5rem] bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm ring-1 ring-slate-200 transition hover:ring-[#6b83f2]/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8]"
+        className="flex min-w-[9rem] items-center justify-between gap-3 rounded-full bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm transition hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
       >
-        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-[#4a63e8]" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-          <rect x="3" y="4.5" width="14" height="12" rx="2.5" />
-          <path d="M3 8.5h14M7 3v3M13 3v3" strokeLinecap="round" />
-        </svg>
-        <span className="min-w-0 flex-1 truncate text-left">{current.label}</span>
+        <span className="truncate">{current.label}</span>
         <svg
           viewBox="0 0 20 20"
-          className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
           fill="none"
           stroke="currentColor"
           strokeWidth="1.8"
@@ -187,9 +257,9 @@ function PeriodDropdown({ value, onChange }: { value: Period; onChange: (p: Peri
       {open && (
         <ul
           role="listbox"
-          className="absolute left-0 z-20 mt-2 max-h-[70vh] w-[min(16rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200 sm:left-auto sm:right-0"
+          className="absolute right-0 z-30 mt-2 w-[min(15rem,calc(100vw-3rem))] overflow-hidden rounded-3xl bg-white p-1.5 shadow-[0_18px_40px_-12px_rgba(15,23,42,0.35)]"
         >
-          {PERIOD_OPTIONS.map((o) => {
+          {options.map((o) => {
             const selected = o.value === value;
             return (
               <li key={o.value} role="option" aria-selected={selected}>
@@ -199,20 +269,16 @@ function PeriodDropdown({ value, onChange }: { value: Period; onChange: (p: Peri
                     onChange(o.value);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition sm:py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8] ${
-                    selected ? "bg-[#eef1fe]" : "hover:bg-slate-50"
+                  className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 ${
+                    selected ? "bg-slate-100" : "hover:bg-slate-50"
                   }`}
                 >
                   <span className="flex-1">
-                    <span className={`block text-sm font-medium ${selected ? "text-[#4a63e8]" : "text-slate-800"}`}>
-                      {o.label}
-                    </span>
-                    <span className="block text-xs text-slate-500">
-                      {o.value === "all_time" ? "Every record so far" : periodLabel(o.value)}
-                    </span>
+                    <span className="block text-sm font-medium text-slate-900">{o.label}</span>
+                    {o.hint && <span className="block text-xs text-slate-500">{o.hint}</span>}
                   </span>
                   {selected && (
-                    <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-[#4a63e8]" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-slate-900" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                       <path d="M4.5 10.5l3.5 3.5 7.5-8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   )}
@@ -226,66 +292,168 @@ function PeriodDropdown({ value, onChange }: { value: Period; onChange: (p: Peri
   );
 }
 
-function StatCard({
-  label,
-  value,
-  note,
-  href,
-  accent = "text-slate-900",
-  theme,
-}: {
-  label: string;
-  value: string;
-  note?: string;
-  href: string;
-  accent?: string;
-  theme?: CardTheme;
-}) {
-  const t = theme ? CARD_THEMES[theme] : null;
-  return (
-    <Link
-      href={href}
-      className={`block rounded-2xl p-6 shadow-sm transition hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8] focus-visible:ring-offset-2 ${
-        t ? t.box : "bg-white hover:ring-1 hover:ring-[#6b83f2]/50"
-      }`}
-    >
-      <p className={`text-sm font-medium ${t ? t.label : "text-slate-700"}`}>{label}</p>
-      <p className={`mt-2 text-3xl font-semibold tabular-nums ${t ? t.value : accent}`}>
-        {value}
-      </p>
-      {note && <p className={`mt-1 text-xs ${t ? t.note : "text-slate-500"}`}>{note}</p>}
-    </Link>
-  );
+const Empty = ({ children }: { children: ReactNode }) => (
+  <p className="py-6 text-center text-sm text-slate-500">{children}</p>
+);
+
+// ---- Statistics (green line chart) -----------------------------------------
+type ChartRange = "7d" | "6m" | "12m";
+const CHART_OPTIONS: { value: ChartRange; label: string }[] = [
+  { value: "7d", label: "7 days" },
+  { value: "6m", label: "6 months" },
+  { value: "12m", label: "12 months" },
+];
+
+function buildBuckets(range: ChartRange, sales: Sale[]) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const day = now.getDate();
+  const buckets: { label: string; start: Date; end: Date; value: number }[] = [];
+
+  if (range === "7d") {
+    for (let i = 6; i >= 0; i--) {
+      const start = new Date(y, m, day - i);
+      const end = new Date(y, m, day - i + 1);
+      buckets.push({ label: start.toLocaleDateString("en-IN", { weekday: "short" }), start, end, value: 0 });
+    }
+  } else {
+    const n = range === "6m" ? 6 : 12;
+    for (let i = n - 1; i >= 0; i--) {
+      const start = new Date(y, m - i, 1);
+      const end = new Date(y, m - i + 1, 1);
+      buckets.push({ label: start.toLocaleDateString("en-IN", { month: "short" }), start, end, value: 0 });
+    }
+  }
+
+  sales.forEach((s) => {
+    if (!s.status) return;
+    const t = new Date(s.Sell_date).getTime();
+    if (isNaN(t)) return;
+    const b = buckets.find((x) => t >= x.start.getTime() && t < x.end.getTime());
+    if (b) b.value += Number(s.total_amount || 0);
+  });
+  return buckets;
 }
 
-function Panel({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: { label: string; href: string };
-  children: ReactNode;
-}) {
+// Smooth curve through the points (Catmull-Rom converted to cubic beziers)
+function smoothPath(pts: { x: number; y: number }[]) {
+  if (pts.length < 2) return "";
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
+function StatisticsCard({ sales }: { sales: Sale[] }) {
+  const [range, setRange] = useState<ChartRange>("7d");
+  const [hover, setHover] = useState<number | null>(null);
+
+  const buckets = useMemo(() => buildBuckets(range, sales), [range, sales]);
+  const n = buckets.length;
+  const max = Math.max(1, ...buckets.map((b) => b.value));
+  const total = buckets.reduce((t, b) => t + b.value, 0);
+  // Highest point is highlighted by default (the last point if everything is zero)
+  const peak = total > 0 ? buckets.findIndex((b) => b.value === max) : n - 1;
+  const active = hover ?? peak;
+  const pts = buckets.map((b, i) => ({
+    x: ((i + 0.5) / n) * 100,
+    y: b.value > 0 ? 85 - (b.value / max) * 65 : 85,
+  }));
+  const rangeLabel = CHART_OPTIONS.find((o) => o.value === range)!.label;
+
   return (
-    <section className="rounded-2xl bg-white p-6 shadow-sm">
-      <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
-        {action && (
-          <Link href={action.href} className="text-sm font-semibold text-[#4a63e8] hover:underline">
-            {action.label}
-          </Link>
-        )}
+    <section className="rounded-[28px] p-5 text-white shadow-[0_14px_30px_-18px_rgba(10,159,88,0.8)]" style={{ backgroundColor: GREEN }}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-medium">Statistics</h2>
+          <p className="mt-3 text-4xl font-medium tracking-tight tabular-nums">{money(total)}</p>
+          <p className="mt-1 text-xs">Completed sales · last {rangeLabel}</p>
+        </div>
+        <ArrowLink href="/sales" label="Open sales" tone="dark" />
       </div>
-      {children}
+
+      <div className="relative mt-12 h-40" onMouseLeave={() => setHover(null)}>
+        <div className="absolute inset-0 flex border-r border-white/25">
+          {buckets.map((b, i) => {
+            const isActive = i === active;
+            return (
+              <button
+                key={`${b.label}-${i}`}
+                type="button"
+                aria-label={`${b.label}: ${money(b.value)}`}
+                onMouseEnter={() => setHover(i)}
+                onFocus={() => setHover(i)}
+                onBlur={() => setHover(null)}
+                className="relative h-full flex-1 border-l border-white/25 outline-none focus-visible:bg-white/10"
+              >
+                {isActive && (
+                  <>
+                    <span
+                      className="absolute left-1/2 w-3.5 -translate-x-1/2 rounded-full bg-gradient-to-b from-white/70 to-white/10"
+                      style={{ top: `${pts[i].y}%`, bottom: 0 }}
+                    />
+                    <span
+                      className="absolute left-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"
+                      style={{ top: `${pts[i].y}%` }}
+                    />
+                    <span
+                      className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-900 shadow"
+                      style={{ top: `${pts[i].y}%`, transform: "translate(-50%, calc(-100% - 12px))" }}
+                    >
+                      {money(b.value)}
+                    </span>
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <path d={smoothPath(pts)} fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        </svg>
+      </div>
+
+      <div className="mt-2 flex text-[11px]">
+        {buckets.map((b, i) => (
+          <span key={`${b.label}-${i}`} className="flex-1 text-center">
+            {n > 8 && i % 2 === 1 ? "" : b.label}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-4 flex gap-2" role="group" aria-label="Statistics range">
+        {CHART_OPTIONS.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => {
+              setRange(o.value);
+              setHover(null);
+            }}
+            aria-pressed={range === o.value}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+              range === o.value ? "bg-white text-slate-900" : "bg-white/20 text-white hover:bg-white/30"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
     </section>
   );
 }
 
-const Empty = ({ children }: { children: ReactNode }) => (
-  <p className="py-8 text-center text-sm text-slate-500">{children}</p>
-);
-
+// ---- Page ------------------------------------------------------------------
 export default function DashboardPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -297,6 +465,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState<string[]>([]);
   const [period, setPeriod] = useState<Period>("this_month");
+  const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -337,6 +506,8 @@ export default function DashboardPage() {
 
   const d = useMemo(() => {
     const range = getRange(period);
+    const prev = getPrevRange(period);
+    const needle = query.trim().toLowerCase();
     const productById = new Map(products.map((p) => [p.id, p]));
     const platformById = new Map(platforms.map((p) => [p.id, p.platform_name]));
     const supplierById = new Map(suppliers.map((s) => [s.id, s.supplier_name]));
@@ -357,55 +528,123 @@ export default function DashboardPage() {
     const purchasesTotal = purchasesInPeriod.reduce((t, p) => t + Number(p.total_amount || 0), 0);
     const returnQuantity = returnsInPeriod.reduce((t, r) => t + Number(r.quantity || 0), 0);
 
-    const lowStock = products
+    // Previous period totals, for the change chips
+    let salesPct: number | null = null;
+    let purchasesPct: number | null = null;
+    let soldPct: number | null = null;
+    if (prev) {
+      const prevCompleted = sales.filter((s) => s.status && inRange(s.Sell_date, prev.range));
+      const prevSales = prevCompleted.reduce((t, s) => t + Number(s.total_amount || 0), 0);
+      const prevSold = prevCompleted.reduce((t, s) => t + Number(s.quantity || 0), 0);
+      const prevPurchases = purchases
+        .filter((p) => inRange(p.purchase_date, prev.range))
+        .reduce((t, p) => t + Number(p.total_amount || 0), 0);
+      salesPct = pctChange(salesTotal, prevSales);
+      soldPct = pctChange(soldQuantity, prevSold);
+      purchasesPct = pctChange(purchasesTotal, prevPurchases);
+    }
+
+    const lowStockAll = products
       .filter((p) => p.status && p.stock_quantity <= (p.reorder_level ?? LOW_STOCK_DEFAULT))
       .sort((a, b) => a.stock_quantity - b.stock_quantity);
+    const lowStock = needle
+      ? lowStockAll.filter((p) => `${p.product_name} ${p.brand_name}`.toLowerCase().includes(needle))
+      : lowStockAll;
 
     const platformTotals = new Map<number, number>();
     completed.forEach((s) =>
       platformTotals.set(s.platform_id, (platformTotals.get(s.platform_id) ?? 0) + Number(s.total_amount))
     );
     const platformRows = Array.from(platformTotals.entries())
-      .map(([id, value]) => ({ name: platformById.get(id) ?? `Platform #${id}`, value }))
+      .map(([id, value]) => ({
+        id,
+        name: platformById.get(id) ?? `Platform #${id}`,
+        value,
+        share: salesTotal > 0 ? Math.round((value / salesTotal) * 100) : 0,
+      }))
       .sort((a, b) => b.value - a.value);
+
+    const matchSale = (s: Sale) =>
+      !needle ||
+      `${s.order_id} ${productName(s.product_id)} ${platformById.get(s.platform_id) ?? ""}`
+        .toLowerCase()
+        .includes(needle);
 
     return {
       label: periodLabel(period),
+      compareLabel: prev?.label,
+      hasCompare: Boolean(prev),
       productName,
       platformById,
       supplierById,
       salesTotal,
+      salesPct,
       soldQuantity,
+      soldPct,
       purchasesTotal,
+      purchasesPct,
       returnQuantity,
       stockUnits: products.reduce((t, p) => t + p.stock_quantity, 0),
-      activeProducts: products.filter((p) => p.status).length,
+      activeSuppliers: suppliers.filter((s) => s.status).length,
+      lowStockCount: lowStockAll.length,
       lowStock,
       platformRows,
-      platformMax: Math.max(1, ...platformRows.map((r) => r.value)),
-      recentSales: [...salesInPeriod].sort((a, b) => byDateDesc(a.Sell_date, b.Sell_date)).slice(0, 5),
-      recentPurchases: [...purchasesInPeriod]
+      recentSales: salesInPeriod
+        .filter(matchSale)
+        .sort((a, b) => byDateDesc(a.Sell_date, b.Sell_date))
+        .slice(0, 5),
+      recentPurchases: purchasesInPeriod
+        .filter((p) => !needle || productName(p.product_id).toLowerCase().includes(needle))
         .sort((a, b) => byDateDesc(a.purchase_date, b.purchase_date))
         .slice(0, 5),
     };
-  }, [period, products, sales, purchases, returns, suppliers, platforms]);
+  }, [period, query, products, sales, purchases, returns, suppliers, platforms]);
 
   const returnsFailed = failed.includes("returns");
+  const periodOptions = PERIOD_OPTIONS.map((o) => ({
+    ...o,
+    hint: o.value === "all_time" ? "Every record so far" : periodLabel(o.value),
+  }));
+
+  // Platform pills: best sellers first; falls back to the platform list when nothing sold yet
+  const pillSource = d.platformRows.length
+    ? d.platformRows.slice(0, 4)
+    : platforms.slice(0, 4).map((p) => ({ id: p.id, name: p.platform_name, value: 0, share: 0 }));
+  const topThree = d.platformRows.slice(0, 3);
 
   return (
-    <div className="min-h-screen min-w-0 flex-1 bg-[#f6f6f6]">
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-semibold text-slate-900">Dashboard</h1>
-            <p className="text-sm text-slate-600">A live summary of your inventory data.</p>
-          </div>
-          <div className="flex w-full items-center gap-3 sm:w-auto">
-            <PeriodDropdown value={period} onChange={setPeriod} />
+    <div className="min-h-screen min-w-0 flex-1 bg-[#cdd6e3] p-3 sm:p-6">
+      <main className="mx-auto max-w-[1320px]">
+        {/* Extra bottom margin keeps the cards clear of the header */}
+        <header className="mb-10 flex flex-wrap items-center justify-between gap-3 sm:mb-14">
+          <h1 className="text-3xl font-semibold text-slate-900">Dashboard</h1>
+          <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:flex-nowrap">
+            <label className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
+              <span className="sr-only">Search dashboard</span>
+              <svg
+                viewBox="0 0 20 20"
+                className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                aria-hidden="true"
+              >
+                <circle cx="9" cy="9" r="5.5" />
+                <path d="M13.5 13.5L17 17" strokeLinecap="round" />
+              </svg>
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search products, orders…"
+                className="w-full rounded-full bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+              />
+            </label>
+            <Select value={period} options={periodOptions} onChange={setPeriod} />
             <button
               onClick={load}
               disabled={loading}
-              className="shrink-0 rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8] disabled:opacity-50"
+              className="shrink-0 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white shadow-[0_8px_20px_-8px_rgba(0,0,0,0.5)] transition hover:bg-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:opacity-50"
             >
               {loading ? "Refreshing…" : "Refresh"}
             </button>
@@ -413,140 +652,290 @@ export default function DashboardPage() {
         </header>
 
         {failed.length > 0 && (
-          <div
-            role="alert"
-            className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
-          >
+          <div role="alert" className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-800 ring-1 ring-red-200">
             Couldn&apos;t load: {failed.join(", ")}. Check that your backend is running; the numbers
             below may be incomplete.
           </div>
         )}
 
         {loading ? (
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" aria-busy="true">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="h-28 animate-pulse rounded-2xl bg-slate-200/70" />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-busy="true">
+            {[0, 1, 2, 3].map((c) => (
+              <div key={c} className="space-y-4">
+                <div className="h-44 animate-pulse rounded-[28px] bg-white/60" />
+                <div className="h-64 animate-pulse rounded-[28px] bg-white/60" />
+              </div>
             ))}
           </div>
         ) : (
-          <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <StatCard
-                label="Products"
-                value={String(products.length)}
-                note={`${d.activeProducts} active · ${categories.length} categories`}
-                href="/home"
-              />
-              <StatCard
-                label="Units in stock"
-                value={d.stockUnits.toLocaleString("en-IN")}
-                note="Across all products"
-                href="/home"
-                theme="blue"
-              />
-              <StatCard
-                label="Low stock items"
-                value={String(d.lowStock.length)}
-                note={d.lowStock.length > 0 ? "Need restocking" : "All good"}
-                href="/home"
-                theme={d.lowStock.length > 0 ? "fadedRed" : undefined}
-              />
-              <StatCard
-                label="Total sold items"
-                value={d.soldQuantity.toLocaleString("en-IN")}
-                note={d.label}
-                href="/sales"
-              />
-              <StatCard
-                label="Total sales"
-                value={money(d.salesTotal)}
-                note={d.label}
-                href="/sales"
-                theme="green"
-              />
-              <StatCard
-                label="Total purchases"
-                value={money(d.purchasesTotal)}
-                note={d.label}
-                href="/purchase"
-              />
-              <StatCard
-                label="Suppliers"
-                value={String(suppliers.length)}
-                note={`${suppliers.filter((s) => s.status).length} active`}
-                href="/supplier"
-              />
-              <StatCard
-                label="Returns"
-                value={returnsFailed ? "—" : d.returnQuantity.toLocaleString("en-IN")}
-                note={`Units returned · ${d.label}`}
-                href="/returns"
-                theme="red"
-              />
-            </div>
+          <div className="space-y-16">
+            {/* First view: only the cards, vertically centred in the visible area */}
+            <div className="flex flex-col justify-center lg:min-h-[calc(100vh-12rem)]">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {/* ---------- Column 1: items sold + purchases ---------- */}
+                <div className="min-w-0 space-y-4">
+                  <section
+                    className="flex items-center justify-between gap-3 rounded-[28px] p-5 text-slate-900 shadow-[0_14px_30px_-18px_rgba(255,178,30,0.9)]"
+                    style={{ backgroundColor: AMBER }}
+                  >
+                    <div>
+                      <h2 className="text-sm font-medium text-slate-800">Items sold</h2>
+                      <p className="mt-1 text-2xl font-semibold tabular-nums">
+                        {d.soldQuantity.toLocaleString("en-IN")} units
+                      </p>
+                    </div>
+                    <Chip pct={d.soldPct} show={d.hasCompare} title={d.compareLabel} />
+                  </section>
 
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              <Panel title="Sales by platform">
-                {d.platformRows.length === 0 ? (
-                  <Empty>No completed sales in this period.</Empty>
-                ) : (
-                  <ul className="space-y-4">
-                    {d.platformRows.map((r, i) => (
-                      <li key={r.name}>
-                        <div className="mb-1 flex justify-between text-sm">
-                          <span className="font-medium text-slate-800">{r.name}</span>
-                          <span className="tabular-nums text-slate-600">
-                            {money(r.value)}
-                            {d.salesTotal > 0 && ` · ${Math.round((r.value / d.salesTotal) * 100)}%`}
-                          </span>
-                        </div>
-                        <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className={`h-full rounded-full ${BAR_COLORS[i % BAR_COLORS.length]}`}
-                            style={{ width: `${(r.value / d.platformMax) * 100}%` }}
-                          />
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Panel>
+                  <section className={CARD}>
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className="text-sm font-medium text-slate-900">Purchases</h2>
+                      <Chip pct={d.purchasesPct} show={d.hasCompare} title={d.compareLabel} />
+                    </div>
+                    <p className="mt-10 text-4xl font-medium tracking-tight tabular-nums text-slate-900">
+                      {money(d.purchasesTotal)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">{d.label}</p>
 
-              <Panel title="Low stock" action={{ label: "View products", href: "/home" }}>
-                {d.lowStock.length === 0 ? (
-                  <Empty>Nothing is running low.</Empty>
-                ) : (
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="border-b border-slate-200 text-xs text-slate-500">
-                      <tr>
-                        <th className="pb-3 font-medium">Product</th>
-                        <th className="pb-3 font-medium">Size</th>
-                        <th className="pb-3 text-right font-medium">Stock</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {d.lowStock.slice(0, 5).map((p) => (
-                        <tr key={p.id}>
-                          <td className="py-3 text-slate-800">
-                            {titleCase(p.product_name)}
-                            <span className="ml-2 text-xs text-slate-500">
-                              {titleCase(p.brand_name)}
+                    <div className="mt-6 rounded-3xl bg-[#f7f7f7] p-4 ring-1 ring-slate-100">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">Suppliers</p>
+                          <p className="text-xs text-slate-500">{d.activeSuppliers} active</p>
+                        </div>
+                        <ArrowLink href="/supplier" label="Open suppliers" />
+                      </div>
+                      <div className="mt-6 flex items-center">
+                        {suppliers.length === 0 ? (
+                          <p className="text-xs text-slate-500">No suppliers yet.</p>
+                        ) : (
+                          <>
+                            {suppliers.slice(0, 3).map((s, i) => (
+                              <span
+                                key={s.id}
+                                title={s.supplier_name}
+                                className={`-ml-3 flex h-12 w-12 items-center justify-center rounded-full border-2 border-white text-sm font-bold first:ml-0 ${
+                                  TINTS[i % TINTS.length]
+                                }`}
+                              >
+                                {initials(s.supplier_name)}
+                              </span>
+                            ))}
+                            {suppliers.length > 3 && (
+                              <span
+                                className="-ml-3 flex h-12 w-12 items-center justify-center rounded-full border-2 border-white text-sm font-bold text-white"
+                                style={{ backgroundColor: GREEN }}
+                              >
+                                +{suppliers.length - 3}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                {/* ---------- Column 2: analytics + inventory + top platforms ---------- */}
+                <div className="min-w-0 space-y-4">
+                  <section className={CARD}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h2 className="text-sm font-medium text-slate-900">Analytics</h2>
+                        <p className="mt-3 text-4xl font-medium tracking-tight tabular-nums text-slate-900">
+                          {money(d.salesTotal)}
+                        </p>
+                        <div className="mt-2 flex items-center gap-2">
+                          <Chip pct={d.salesPct} show={d.hasCompare} title={d.compareLabel} />
+                          <span className="text-xs text-slate-500">{d.compareLabel ?? d.label}</span>
+                        </div>
+                      </div>
+                      <ArrowLink href="/sales" label="Open sales" />
+                    </div>
+
+                    {topThree.length === 0 ? (
+                      <Empty>No completed sales in this period.</Empty>
+                    ) : (
+                      <div className="mt-5 flex gap-2">
+                        {topThree.map((r, i) => {
+                          const fill = Math.max(r.share, 14);
+                          const first = i === 0;
+                          return (
+                            <div key={r.id} className="min-w-0 flex-1 text-center">
+                              <div className="relative h-36 overflow-hidden rounded-2xl" style={HATCH}>
+                                <div
+                                  className="absolute inset-x-0 bottom-0 rounded-2xl"
+                                  style={{ height: `${fill}%`, backgroundColor: first ? GREEN : LIGHT_GREEN }}
+                                >
+                                  <span
+                                    className={`absolute inset-x-4 top-1.5 h-0.5 rounded-full ${
+                                      first ? "bg-white/80" : "bg-black/70"
+                                    }`}
+                                  />
+                                  <span
+                                    className={`absolute left-3 top-4 text-sm font-semibold ${
+                                      first ? "text-white" : "text-slate-900"
+                                    }`}
+                                  >
+                                    {r.share}%
+                                  </span>
+                                </div>
+                              </div>
+                              <p className="mt-2 truncate text-xs text-slate-500">{r.name}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+
+                  <Link
+                    href="/home"
+                    className="relative block overflow-hidden rounded-[28px] p-5 text-white shadow-[0_14px_30px_-18px_rgba(31,108,255,0.9)] focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+                    style={{ backgroundColor: BLUE }}
+                  >
+                    <svg viewBox="0 0 200 200" className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 text-white" fill="none" stroke="currentColor" aria-hidden="true">
+                      <circle cx="100" cy="100" r="60" strokeOpacity="0.18" />
+                      <circle cx="100" cy="100" r="85" strokeOpacity="0.12" />
+                    </svg>
+                    <p className="relative text-lg font-bold italic tracking-wide">Inventory</p>
+                    <p className="relative mt-4 text-sm">Units in stock</p>
+                    <p className="relative mt-1 text-4xl font-medium tracking-tight tabular-nums">
+                      {d.stockUnits.toLocaleString("en-IN")}
+                    </p>
+                    <div className="relative mt-6 flex items-center justify-between text-sm">
+                      <span>{products.length} products</span>
+                      <span>{categories.length} categories</span>
+                    </div>
+                  </Link>
+
+                  <section className={CARD}>
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className="text-sm font-medium text-slate-900">Top platforms</h2>
+                      <ArrowLink href="/platforms" label="Open platforms" />
+                    </div>
+                    {pillSource.length === 0 ? (
+                      <Empty>No platforms yet.</Empty>
+                    ) : (
+                      <ul className="mt-4 grid grid-cols-2 gap-2">
+                        {pillSource.map((r, i) => (
+                          <li
+                            key={r.id}
+                            className="flex min-w-0 items-center gap-2 rounded-2xl border border-slate-300 px-2.5 py-2"
+                          >
+                            <span
+                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+                                TINTS[i % TINTS.length]
+                              }`}
+                              aria-hidden="true"
+                            >
+                              {initials(r.name)}
                             </span>
-                          </td>
-                          <td className="py-3 text-slate-700">{p.size}</td>
-                          <td className="py-3 text-right font-medium tabular-nums text-red-600">
-                            {p.stock_quantity}
-                          </td>
-                        </tr>
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium text-slate-900">{r.name}</span>
+                              <span className="block truncate text-[10px] text-slate-500">
+                                {r.value > 0 ? `${money(r.value)} · ${r.share}%` : "No sales yet"}
+                              </span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                </div>
+
+                {/* ---------- Column 3: statistics + quick links ---------- */}
+                <div className="min-w-0 space-y-4">
+                  <StatisticsCard sales={sales} />
+
+                  <section className={CARD}>
+                    <h2 className="text-sm font-medium text-slate-900">Quick links</h2>
+                    <p className="text-xs text-slate-500">Jump to a page</p>
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      {[
+                        { href: "/sales", label: "Sales", icon: ICONS.sales },
+                        { href: "/purchase", label: "Purchases", icon: ICONS.purchase },
+                        { href: "/home", label: "Products", icon: ICONS.product },
+                      ].map((q) => (
+                        <Link
+                          key={q.href}
+                          href={q.href}
+                          className="flex h-24 flex-col items-center justify-center gap-2 rounded-2xl bg-[#f6f6f6] text-xs font-medium text-slate-800 ring-1 ring-slate-100 transition hover:bg-white hover:ring-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                        >
+                          <Icon d={q.icon} className="h-5 w-5 text-slate-700" />
+                          {q.label}
+                        </Link>
                       ))}
-                    </tbody>
-                  </table>
-                )}
-              </Panel>
+                    </div>
+                  </section>
+                </div>
+
+                {/* ---------- Column 4: returns + low stock ---------- */}
+                <div className="min-w-0 space-y-4">
+                  <Link
+                    href="/returns"
+                    className="block rounded-[28px] p-5 text-white shadow-[0_14px_30px_-18px_rgba(217,45,45,0.9)] transition hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+                    style={{ backgroundColor: ORANGE }}
+                  >
+                    <p className="text-sm text-white/85">Returns</p>
+                    <p className="mt-1 text-3xl font-semibold tabular-nums">
+                      {returnsFailed ? "—" : d.returnQuantity.toLocaleString("en-IN")}
+                    </p>
+                    <p className="mt-1 text-xs text-white/85">Units returned · {d.label}</p>
+                  </Link>
+
+                  <section className={CARD}>
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="flex" aria-hidden="true">
+                        <span className="h-8 w-8 rounded-full" style={{ backgroundColor: ORANGE }} />
+                        <span className="-ml-3 h-8 w-8 rounded-full bg-amber-400 mix-blend-multiply" />
+                      </span>
+                      <Link href="/home" className="text-xs font-medium text-slate-700 hover:underline">
+                        View products
+                      </Link>
+                    </div>
+                    <p className="mt-4 text-sm text-slate-500">Low stock items</p>
+                    <p className="mt-1 text-4xl font-medium tracking-tight tabular-nums text-slate-900">
+                      {d.lowStockCount}
+                    </p>
+                    <p className="text-xs text-slate-500">{d.lowStockCount > 0 ? "Need restocking" : "All good"}</p>
+
+                    {d.lowStock.length > 0 && (
+                      <ul className="mt-4 divide-y divide-slate-100 border-t border-slate-100">
+                        {d.lowStock.slice(0, 5).map((p) => (
+                          <li key={p.id} className="flex items-center justify-between gap-3 py-2.5">
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium text-slate-900">
+                                {titleCase(p.product_name)}
+                              </span>
+                              <span className="block truncate text-xs text-slate-500">
+                                {titleCase(p.brand_name)} · {p.size}
+                              </span>
+                            </span>
+                            <span
+                              className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums text-white"
+                              style={{ backgroundColor: ORANGE }}
+                            >
+                              {p.stock_quantity}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              <Panel title="Recent sales" action={{ label: "View all", href: "/sales" }}>
+            {/* ---------- Tables (below the fold: appear on scroll) ---------- */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <section className={CARD}>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h2 className="text-lg font-semibold text-slate-900">Recent sales</h2>
+                  <Link href="/sales" className="text-sm font-medium text-slate-700 hover:underline">
+                    View all
+                  </Link>
+                </div>
                 {d.recentSales.length === 0 ? (
                   <Empty>No sales recorded in this period.</Empty>
                 ) : (
@@ -567,7 +956,10 @@ export default function DashboardPage() {
                             <td className="whitespace-nowrap py-3 font-medium text-slate-900">
                               {s.order_id}
                               {!s.status && (
-                                <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-normal text-slate-700">
+                                <span
+                                  className="ml-2 rounded-full px-2 py-0.5 text-[11px] font-bold text-white"
+                                  style={{ backgroundColor: ORANGE }}
+                                >
                                   Cancelled
                                 </span>
                               )}
@@ -591,9 +983,15 @@ export default function DashboardPage() {
                     </table>
                   </div>
                 )}
-              </Panel>
+              </section>
 
-              <Panel title="Recent purchases" action={{ label: "View all", href: "/purchase" }}>
+              <section className={CARD}>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h2 className="text-lg font-semibold text-slate-900">Recent purchases</h2>
+                  <Link href="/purchase" className="text-sm font-medium text-slate-700 hover:underline">
+                    View all
+                  </Link>
+                </div>
                 {d.recentPurchases.length === 0 ? (
                   <Empty>No purchases recorded in this period.</Empty>
                 ) : (
@@ -629,7 +1027,7 @@ export default function DashboardPage() {
                     </table>
                   </div>
                 )}
-              </Panel>
+              </section>
             </div>
           </div>
         )}
