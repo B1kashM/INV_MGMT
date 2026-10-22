@@ -17,14 +17,14 @@ const LIGHT_GREEN = "#dcefc3";
 const ORANGE = "#f0400f";
 const BLUE = "#1f6cff";
 const RED = "#d92d2d"; // Returns card
-const AMBER = "#ffb21e"; // Items sold card
+const WHITE = "#ffffff"; // Items sold card
 
 const CARD = "rounded-[28px] bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.05),0_14px_30px_-20px_rgba(15,23,42,0.25)]";
 const TINTS = [
   "bg-emerald-100 text-emerald-700",
   "bg-sky-100 text-sky-700",
   "bg-violet-100 text-violet-700",
-  "bg-amber-100 text-amber-700",
+  "bg-white-100 text-white-700",
   "bg-rose-100 text-rose-700",
 ];
 const HATCH = {
@@ -296,10 +296,11 @@ const Empty = ({ children }: { children: ReactNode }) => (
   <p className="py-6 text-center text-sm text-slate-500">{children}</p>
 );
 
-// ---- Statistics (green line chart) -----------------------------------------
-type ChartRange = "7d" | "6m" | "12m";
+// ---- Sales (green line chart) ----------------------------------------------
+type ChartRange = "7d" | "1m" | "6m" | "12m";
 const CHART_OPTIONS: { value: ChartRange; label: string }[] = [
   { value: "7d", label: "7 days" },
+  { value: "1m", label: "1 month" },
   { value: "6m", label: "6 months" },
   { value: "12m", label: "12 months" },
 ];
@@ -311,11 +312,19 @@ function buildBuckets(range: ChartRange, sales: Sale[]) {
   const day = now.getDate();
   const buckets: { label: string; start: Date; end: Date; value: number }[] = [];
 
-  if (range === "7d") {
-    for (let i = 6; i >= 0; i--) {
+  if (range === "7d" || range === "1m") {
+    const days = range === "7d" ? 7 : 30;
+    for (let i = days - 1; i >= 0; i--) {
       const start = new Date(y, m, day - i);
       const end = new Date(y, m, day - i + 1);
-      buckets.push({ label: start.toLocaleDateString("en-IN", { weekday: "short" }), start, end, value: 0 });
+      buckets.push({
+        label: range === "7d"
+          ? start.toLocaleDateString("en-IN", { weekday: "short" })
+          : start.toLocaleDateString("en-IN", { day: "numeric" }),
+        start,
+        end,
+        value: 0,
+      });
     }
   } else {
     const n = range === "6m" ? 6 : 12;
@@ -375,7 +384,7 @@ function StatisticsCard({ sales }: { sales: Sale[] }) {
     <section className="rounded-[28px] p-5 text-white shadow-[0_14px_30px_-18px_rgba(10,159,88,0.8)]" style={{ backgroundColor: GREEN }}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-medium">Statistics</h2>
+          <h2 className="text-sm font-medium">Sales</h2>
           <p className="mt-3 text-4xl font-medium tracking-tight tabular-nums">{money(total)}</p>
           <p className="mt-1 text-xs">Completed sales · last {rangeLabel}</p>
         </div>
@@ -431,7 +440,7 @@ function StatisticsCard({ sales }: { sales: Sale[] }) {
         ))}
       </div>
 
-      <div className="mt-4 flex gap-2" role="group" aria-label="Statistics range">
+      <div className="mt-4 flex gap-2" role="group" aria-label="Sales chart range">
         {CHART_OPTIONS.map((o) => (
           <button
             key={o.value}
@@ -613,7 +622,7 @@ export default function DashboardPage() {
   const topThree = d.platformRows.slice(0, 3);
 
   return (
-    <div className="min-h-screen min-w-0 flex-1 bg-[#cdd6e3] p-3 sm:p-6">
+    <div className="min-h-screen min-w-0 flex-1 bg-[#eaf2ff] p-3 sm:p-6">
       <main className="mx-auto max-w-[1320px]">
         {/* Extra bottom margin keeps the cards clear of the header */}
         <header className="mb-10 flex flex-wrap items-center justify-between gap-3 sm:mb-14">
@@ -672,20 +681,23 @@ export default function DashboardPage() {
             {/* First view: only the cards, vertically centred in the visible area */}
             <div className="flex flex-col justify-center lg:min-h-[calc(100vh-12rem)]">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {/* ---------- Column 1: items sold + purchases ---------- */}
+                {/* ---------- Column 1: inventory + purchases ---------- */}
                 <div className="min-w-0 space-y-4">
-                  <section
-                    className="flex items-center justify-between gap-3 rounded-[28px] p-5 text-slate-900 shadow-[0_14px_30px_-18px_rgba(255,178,30,0.9)]"
-                    style={{ backgroundColor: AMBER }}
+                  <Link
+                    href="/home"
+                    className="block rounded-[28px] p-5 text-white shadow-[0_14px_30px_-18px_rgba(31,108,255,0.45)] transition hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+                    style={{ backgroundColor: BLUE }}
                   >
-                    <div>
-                      <h2 className="text-sm font-medium text-slate-800">Items sold</h2>
-                      <p className="mt-1 text-2xl font-semibold tabular-nums">
-                        {d.soldQuantity.toLocaleString("en-IN")} units
-                      </p>
+                    <p className="text-lg font-bold tracking-wide">Inventory</p>
+                    <p className="mt-4 text-sm">Units in stock</p>
+                    <p className="mt-1 text-4xl font-medium tracking-tight tabular-nums">
+                      {d.stockUnits.toLocaleString("en-IN")}
+                    </p>
+                    <div className="mt-6 flex items-center justify-between text-sm">
+                      <span>{products.length} products</span>
+                      <span>{categories.length} categories</span>
                     </div>
-                    <Chip pct={d.soldPct} show={d.hasCompare} title={d.compareLabel} />
-                  </section>
+                  </Link>
 
                   <section className={CARD}>
                     <div className="flex items-center justify-between gap-3">
@@ -696,7 +708,6 @@ export default function DashboardPage() {
                       {money(d.purchasesTotal)}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">{d.label}</p>
-
                     <div className="mt-6 rounded-3xl bg-[#f7f7f7] p-4 ring-1 ring-slate-100">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -714,9 +725,7 @@ export default function DashboardPage() {
                               <span
                                 key={s.id}
                                 title={s.supplier_name}
-                                className={`-ml-3 flex h-12 w-12 items-center justify-center rounded-full border-2 border-white text-sm font-bold first:ml-0 ${
-                                  TINTS[i % TINTS.length]
-                                }`}
+                                className={`-ml-3 flex h-12 w-12 items-center justify-center rounded-full border-2 border-white text-sm font-bold first:ml-0 ${TINTS[i % TINTS.length]}`}
                               >
                                 {initials(s.supplier_name)}
                               </span>
@@ -736,8 +745,21 @@ export default function DashboardPage() {
                   </section>
                 </div>
 
-                {/* ---------- Column 2: analytics + inventory + top platforms ---------- */}
+                {/* ---------- Column 2: items sold + analytics + top platforms ---------- */}
                 <div className="min-w-0 space-y-4">
+                  <section
+                    className="flex items-center justify-between gap-3 rounded-[28px] p-5 text-slate-900 shadow-[0_14px_30px_-18px_rgba(0,0,0,0.18)]"
+                    style={{ backgroundColor: WHITE }}
+                  >
+                    <div>
+                      <h2 className="text-sm font-medium text-slate-800">Items sold</h2>
+                      <p className="mt-1 text-2xl font-semibold tabular-nums">
+                        {d.soldQuantity.toLocaleString("en-IN")} units
+                      </p>
+                    </div>
+                    <Chip pct={d.soldPct} show={d.hasCompare} title={d.compareLabel} />
+                  </section>
+
                   <section className={CARD}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -756,91 +778,62 @@ export default function DashboardPage() {
                     {topThree.length === 0 ? (
                       <Empty>No completed sales in this period.</Empty>
                     ) : (
-                      <div className="mt-5 flex gap-2">
-                        {topThree.map((r, i) => {
-                          const fill = Math.max(r.share, 14);
-                          const first = i === 0;
-                          return (
-                            <div key={r.id} className="min-w-0 flex-1 text-center">
-                              <div className="relative h-36 overflow-hidden rounded-2xl" style={HATCH}>
-                                <div
-                                  className="absolute inset-x-0 bottom-0 rounded-2xl"
-                                  style={{ height: `${fill}%`, backgroundColor: first ? GREEN : LIGHT_GREEN }}
+                      <div className="mt-5 grid grid-cols-2 gap-3">
+                        {topThree.map((r, i) => (
+                          <div key={r.id} className="min-w-0">
+                            <div className="relative h-32 overflow-hidden rounded-2xl" style={HATCH}>
+                              <div
+                                className="absolute inset-x-0 bottom-0 rounded-2xl transition-all"
+                                style={{
+                                  height: `${Math.max(r.share, r.value > 0 ? 8 : 0)}%`,
+                                  backgroundColor: i === 0 ? GREEN : LIGHT_GREEN,
+                                }}
+                              >
+                                <span
+                                  className={`absolute left-3 top-3 text-sm font-semibold ${i === 0 ? "text-white" : "text-slate-900"}`}
                                 >
-                                  <span
-                                    className={`absolute inset-x-4 top-1.5 h-0.5 rounded-full ${
-                                      first ? "bg-white/80" : "bg-black/70"
-                                    }`}
-                                  />
-                                  <span
-                                    className={`absolute left-3 top-4 text-sm font-semibold ${
-                                      first ? "text-white" : "text-slate-900"
-                                    }`}
-                                  >
-                                    {r.share}%
-                                  </span>
-                                </div>
+                                  {r.share}%
+                                </span>
                               </div>
-                              <p className="mt-2 truncate text-xs text-slate-500">{r.name}</p>
                             </div>
-                          );
-                        })}
+                            <p className="mt-2 truncate text-xs font-medium text-slate-700">{r.name}</p>
+                            <p className="truncate text-xs tabular-nums text-slate-500">{money(r.value)}</p>
+                          </div>
+                        ))}
                       </div>
                     )}
-                  </section>
 
-                  <Link
-                    href="/home"
-                    className="relative block overflow-hidden rounded-[28px] p-5 text-white shadow-[0_14px_30px_-18px_rgba(31,108,255,0.9)] focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
-                    style={{ backgroundColor: BLUE }}
-                  >
-                    <svg viewBox="0 0 200 200" className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 text-white" fill="none" stroke="currentColor" aria-hidden="true">
-                      <circle cx="100" cy="100" r="60" strokeOpacity="0.18" />
-                      <circle cx="100" cy="100" r="85" strokeOpacity="0.12" />
-                    </svg>
-                    <p className="relative text-lg font-bold italic tracking-wide">Inventory</p>
-                    <p className="relative mt-4 text-sm">Units in stock</p>
-                    <p className="relative mt-1 text-4xl font-medium tracking-tight tabular-nums">
-                      {d.stockUnits.toLocaleString("en-IN")}
-                    </p>
-                    <div className="relative mt-6 flex items-center justify-between text-sm">
-                      <span>{products.length} products</span>
-                      <span>{categories.length} categories</span>
-                    </div>
-                  </Link>
-
-                  <section className={CARD}>
-                    <div className="flex items-center justify-between gap-3">
-                      <h2 className="text-sm font-medium text-slate-900">Top platforms</h2>
-                      <ArrowLink href="/platforms" label="Open platforms" />
-                    </div>
-                    {pillSource.length === 0 ? (
-                      <Empty>No platforms yet.</Empty>
-                    ) : (
-                      <ul className="mt-4 grid grid-cols-2 gap-2">
-                        {pillSource.map((r, i) => (
-                          <li
-                            key={r.id}
-                            className="flex min-w-0 items-center gap-2 rounded-2xl border border-slate-300 px-2.5 py-2"
-                          >
-                            <span
-                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
-                                TINTS[i % TINTS.length]
-                              }`}
-                              aria-hidden="true"
+                    <div className="mt-5 border-t border-slate-100 pt-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-medium text-slate-900">Top platforms</h3>
+                        <ArrowLink href="/platforms" label="Open platforms" />
+                      </div>
+                      {pillSource.length === 0 ? (
+                        <Empty>No platforms yet.</Empty>
+                      ) : (
+                        <ul className="mt-3 grid grid-cols-2 gap-2">
+                          {pillSource.map((r, i) => (
+                            <li
+                              key={r.id}
+                              className="flex min-w-0 items-center gap-2 rounded-2xl border border-slate-200 px-2.5 py-2"
                             >
-                              {initials(r.name)}
-                            </span>
-                            <span className="min-w-0">
-                              <span className="block truncate text-sm font-medium text-slate-900">{r.name}</span>
-                              <span className="block truncate text-[10px] text-slate-500">
-                                {r.value > 0 ? `${money(r.value)} · ${r.share}%` : "No sales yet"}
+                              <span
+                                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${TINTS[i % TINTS.length]}`}
+                                aria-hidden="true"
+                              >
+                                {initials(r.name)}
                               </span>
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                              <span className="min-w-0">
+                                <span className="block truncate text-xs font-medium text-slate-900">{r.name}</span>
+                                <span className="block truncate text-[10px] text-slate-500">
+                                  {r.value > 0 ? `${money(r.value)} · ${r.share}%` : "No sales yet"}
+                                </span>
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   </section>
                 </div>
 
@@ -860,7 +853,7 @@ export default function DashboardPage() {
                         <Link
                           key={q.href}
                           href={q.href}
-                          className="flex h-24 flex-col items-center justify-center gap-2 rounded-2xl bg-[#f6f6f6] text-xs font-medium text-slate-800 ring-1 ring-slate-100 transition hover:bg-white hover:ring-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                          className="flex h-24 flex-col items-center justify-center gap-2 rounded-2xl bg-[#eaf2ff] text-xs font-medium text-slate-800 ring-1 ring-slate-100 transition hover:bg-white hover:ring-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
                         >
                           <Icon d={q.icon} className="h-5 w-5 text-slate-700" />
                           {q.label}
@@ -888,7 +881,7 @@ export default function DashboardPage() {
                     <div className="flex items-start justify-between gap-3">
                       <span className="flex" aria-hidden="true">
                         <span className="h-8 w-8 rounded-full" style={{ backgroundColor: ORANGE }} />
-                        <span className="-ml-3 h-8 w-8 rounded-full bg-amber-400 mix-blend-multiply" />
+                        <span className="-ml-3 h-8 w-8 rounded-full bg-blue-400 mix-blend-multiply" />
                       </span>
                       <Link href="/home" className="text-xs font-medium text-slate-700 hover:underline">
                         View products

@@ -548,7 +548,7 @@ export default function PurchasePage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f6f6f6] px-4 py-8 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[#eaf2ff] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
 
         {/* Page Header */}

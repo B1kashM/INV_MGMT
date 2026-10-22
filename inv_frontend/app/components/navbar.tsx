@@ -108,7 +108,7 @@ const NAV: NavGroup[] = [
   },
 ];
 
-const PANEL = "bg-[#ececf5]";
+const PANEL = "bg-[#eff6ff]";
 
 const ICON_BTN =
   "rounded-lg p-1.5 text-slate-600 hover:bg-[#e2e4f1] hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4a63e8]";
