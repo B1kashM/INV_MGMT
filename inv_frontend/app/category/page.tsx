@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import AccessGate from "../components/AccessGate";
 
 const API =`${process.env.NEXT_PUBLIC_BACKEND_URL}/product`;
 
@@ -34,7 +35,7 @@ const formatDate = (iso: string) => {
 const inputCls =
   "h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500";
 
-export default function CategoriesPage() {
+function CategoriesContent() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -565,5 +566,13 @@ export default function CategoriesPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function CategoriesPage() {
+  return (
+    <AccessGate>
+      <CategoriesContent />
+    </AccessGate>
   );
 }

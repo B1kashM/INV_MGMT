@@ -766,6 +766,8 @@ export default function DashboardPage() {
     const soldQuantity = completed.reduce((t, s) => t + Number(s.quantity || 0), 0);
     const purchasesTotal = purchasesInPeriod.reduce((t, p) => t + Number(p.total_amount || 0), 0);
     const returnQuantity = returnsInPeriod.reduce((t, r) => t + Number(r.quantity || 0), 0);
+    const totalSoldIncludingReturns = soldQuantity + returnQuantity;
+    const returnRate = totalSoldIncludingReturns > 0 ? (returnQuantity / totalSoldIncludingReturns) * 100 : 0;
 
     // Previous period totals, for the change chips
     let salesPct: number | null = null;
@@ -814,6 +816,7 @@ export default function DashboardPage() {
       purchasesTotal,
       purchasesPct,
       returnQuantity,
+      returnRate,
       stockUnits: products.reduce((t, p) => t + p.stock_quantity, 0),
       activeSuppliers: suppliers.filter((s) => s.status).length,
       lowStockCount: lowStock.length,
@@ -839,6 +842,25 @@ export default function DashboardPage() {
     ? d.platformRows.slice(0, 4)
     : platforms.slice(0, 4).map((p) => ({ id: p.id, name: p.platform_name, value: 0, share: 0 }));
   const topThree = d.platformRows.slice(0, 3);
+
+  // Top-selling products for the selected period, ranked by units sold
+  const topSellingProducts = useMemo(() => {
+    const quantities = new Map<number, number>();
+    sales.forEach((sale) => {
+      if (!sale.status || !inRange(sale.Sell_date, getRange(period))) return;
+      quantities.set(
+        sale.product_id,
+        (quantities.get(sale.product_id) ?? 0) + Number(sale.quantity || 0),
+      );
+    });
+    return Array.from(quantities.entries())
+      .map(([productId, quantity]) => ({
+        productId,
+        quantity,
+        product: products.find((p) => p.id === productId),
+      }))
+      .sort((a, b) => b.quantity - a.quantity);
+  }, [sales, products, period]);
 
   return (
     <div className="min-h-screen min-w-0 flex-1 bg-[#eaf2ff] p-3 sm:p-6">
@@ -958,7 +980,7 @@ export default function DashboardPage() {
                     <div>
                       <h2 className="text-sm font-medium text-slate-800">Items sold</h2>
                       <p className="mt-1 text-2xl font-semibold tabular-nums">
-                        {d.soldQuantity.toLocaleString("en-IN")} units
+                        {(d.soldQuantity + (returnsFailed ? 0 : d.returnQuantity)).toLocaleString("en-IN")} units
                       </p>
                     </div>
                     <Chip pct={d.soldPct} show={d.hasCompare} title={d.compareLabel} />
@@ -1007,37 +1029,58 @@ export default function DashboardPage() {
                       </div>
                     )}
 
-                    <div className="mt-5 border-t border-slate-100 pt-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <h3 className="text-sm font-medium text-slate-900">Top platforms</h3>
-                        <ArrowLink href="/platforms" label="Open platforms" />
+                  </section>
+
+                  <section className={CARD}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-sm font-medium text-slate-900">Top-selling products</h2>
+                        <p className="mt-1 text-xs text-slate-500">Ranked by units sold · {d.label}</p>
                       </div>
-                      {pillSource.length === 0 ? (
-                        <Empty>No platforms yet.</Empty>
-                      ) : (
-                        <ul className="mt-3 grid grid-cols-2 gap-2">
-                          {pillSource.map((r, i) => (
-                            <li
-                              key={r.id}
-                              className="flex min-w-0 items-center gap-2 rounded-2xl border border-slate-200 px-2.5 py-2"
-                            >
-                              <span
-                                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${TINTS[i % TINTS.length]}`}
-                                aria-hidden="true"
-                              >
-                                {initials(r.name)}
-                              </span>
-                              <span className="min-w-0">
-                                <span className="block truncate text-xs font-medium text-slate-900">{r.name}</span>
-                                <span className="block truncate text-[10px] text-slate-500">
-                                  {r.value > 0 ? `${money(r.value)} · ${r.share}%` : "No sales yet"}
-                                </span>
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                      <Link href="/home" className="shrink-0 text-xs font-medium text-slate-700 hover:underline">
+                        View all
+                      </Link>
                     </div>
+
+                    {topSellingProducts.length === 0 ? (
+                      <Empty>No completed sales in this period.</Empty>
+                    ) : (
+                      <ul
+                        className="mt-3 max-h-[112px] space-y-1 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                        aria-label="Top-selling products, scroll to see more"
+                      >
+                        {topSellingProducts.map((item, index) => (
+                          <li
+                            key={item.productId}
+                            className="flex items-center gap-3 rounded-2xl px-2 py-2 transition hover:bg-slate-50"
+                          >
+                            <span
+                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${
+                                index === 0 ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {index + 1}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-slate-900">
+                                {titleCase(item.product?.product_name ?? `Product #${item.productId}`)}
+                              </span>
+                              <span className="block truncate text-xs text-slate-500">
+                                {item.product
+                                  ? `${titleCase(item.product.brand_name)} · ${titleCase(item.product.color)} · ${item.product.size}`
+                                  : `Product #${item.productId}`}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-right">
+                              <span className="block text-sm font-semibold tabular-nums text-slate-900">
+                                {item.quantity}
+                              </span>
+                              <span className="block text-[10px] text-slate-500">sold</span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </section>
                 </div>
 
@@ -1074,7 +1117,15 @@ export default function DashboardPage() {
                     className="block rounded-[28px] p-5 text-white shadow-[0_14px_30px_-18px_rgba(217,45,45,0.9)] transition hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
                     style={{ backgroundColor: ORANGE }}
                   >
-                    <p className="text-sm text-white/85">Returns</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm text-white/85">Returns</p>
+                      <span
+                        className="shrink-0 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tabular-nums text-white"
+                        title="Returned units as a percentage of sold units"
+                      >
+                        {returnsFailed ? "—" : `${d.returnRate.toFixed(1)}%`}
+                      </span>
+                    </div>
                     <p className="mt-1 text-3xl font-semibold tabular-nums">
                       {returnsFailed ? "—" : d.returnQuantity.toLocaleString("en-IN")}
                     </p>

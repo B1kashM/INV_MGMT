@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import AccessGate from "../components/AccessGate";
 
 const API = `${process.env.NEXT_PUBLIC_BACKEND_URL}/product`;
 
@@ -154,7 +155,7 @@ function SortIcon({
   );
 }
 
-export default function PurchasePage() {
+function PurchaseContent() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1130,5 +1131,13 @@ function Field({
 
       {children}
     </label>
+  );
+}
+
+export default function PurchasePage() {
+  return (
+    <AccessGate>
+      <PurchaseContent />
+    </AccessGate>
   );
 }

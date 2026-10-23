@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import AccessGate from "../components/AccessGate";
 
 const API = `${process.env.NEXT_PUBLIC_BACKEND_URL}/product`;
 
@@ -17,7 +18,7 @@ type FormState = {
 
 const emptyForm: FormState = { platform_name: "", status: true };
 
-export default function PlatformsPage() {
+function PlatformsContent() {
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -677,5 +678,13 @@ export default function PlatformsPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function PlatformsPage() {
+  return (
+    <AccessGate>
+      <PlatformsContent />
+    </AccessGate>
   );
 }

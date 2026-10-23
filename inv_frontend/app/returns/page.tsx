@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import AccessGate from "../components/AccessGate";
 
 const API = `${process.env.NEXT_PUBLIC_BACKEND_URL}/product`;
 
@@ -38,7 +39,7 @@ const formatDate = (iso: string) => {
 const units = (n: number) =>
   `${n} ${n === 1 ? "unit" : "units"}`;
 
-export default function ReturnsPage() {
+function ReturnsContent() {
   const [returns, setReturns] = useState<ReturnRecord[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -378,5 +379,13 @@ export default function ReturnsPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function ReturnsPage() {
+  return (
+    <AccessGate>
+      <ReturnsContent />
+    </AccessGate>
   );
 }

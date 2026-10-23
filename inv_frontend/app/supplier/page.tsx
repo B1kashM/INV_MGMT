@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import AccessGate from "../components/AccessGate";
 
 const API = `${process.env.NEXT_PUBLIC_BACKEND_URL}/product`;
 
@@ -48,7 +49,7 @@ const formatDate = (iso: string) => {
       });
 };
 
-export default function SuppliersPage() {
+function SuppliersContent() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -717,5 +718,13 @@ function Field({
 
       {children}
     </label>
+  );
+}
+
+export default function SuppliersPage() {
+  return (
+    <AccessGate>
+      <SuppliersContent />
+    </AccessGate>
   );
 }
