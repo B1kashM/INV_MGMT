@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import BulkUploadModal from "./BulkUploadModal";
 
 const API = `${process.env.NEXT_PUBLIC_BACKEND_URL}/product`;
@@ -234,7 +235,7 @@ function SortableHeader({
   );
 }
 
-export default function ProductsPage() {
+function ProductsContent() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -254,8 +255,16 @@ export default function ProductsPage() {
 
   const [bulkOpen, setBulkOpen] = useState(false);
 
-  const [search, setSearch] = useState("");
+  // Pre-fill the search box from the dashboard link (/home?search=...)
+  const searchParams = useSearchParams();
+  const urlSearch = searchParams.get("search") ?? "";
+
+  const [search, setSearch] = useState(urlSearch);
   const query = search.trim();
+
+  useEffect(() => {
+    setSearch(urlSearch);
+  }, [urlSearch]);
 
   const [sortConfig, setSortConfig] =
     useState<SortConfig>(null);
@@ -265,13 +274,16 @@ export default function ProductsPage() {
     [products]
   );
 
+  // Matches product name OR product ID
   const visibleProducts = useMemo(() => {
     if (query === "") return products;
 
     const q = query.toLowerCase();
 
-    return products.filter((p) =>
-      p.product_name.toLowerCase().includes(q)
+    return products.filter(
+      (p) =>
+        p.product_name.toLowerCase().includes(q) ||
+        String(p.product_id).includes(q)
     );
   }, [products, query]);
 
@@ -602,8 +614,8 @@ export default function ProductsPage() {
                     onKeyDown={(e) =>
                       e.key === "Escape" && setSearch("")
                     }
-                    placeholder="Search by product name"
-                    aria-label="Search products by product name"
+                    placeholder="Search by product name or ID"
+                    aria-label="Search products by product name or product ID"
                     className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-9 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                   />
 
@@ -793,7 +805,7 @@ export default function ProductsPage() {
                         colSpan={12}
                         className="px-4 py-14 text-center text-slate-500"
                       >
-                        No product name contains “{query}”.{" "}
+                        No product name or ID matches “{query}”.{" "}
                         <button
                           onClick={() => setSearch("")}
                           className="font-medium text-blue-600 hover:text-blue-700 hover:underline"
@@ -1232,5 +1244,14 @@ function Field({
 
       {children}
     </label>
+  );
+}
+
+// useSearchParams needs a Suspense boundary in the Next.js app router
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ProductsContent />
+    </Suspense>
   );
 }

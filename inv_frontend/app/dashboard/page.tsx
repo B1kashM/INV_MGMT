@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Sidebar from "../components/navbar";
@@ -35,6 +36,7 @@ const HATCH = {
 
 type Product = {
   id: number;
+  product_id: number; // ProductDetails.product_id (unique, shown on /home)
   product_name: string;
   brand_name: string;
   size: string;
@@ -296,6 +298,236 @@ const Empty = ({ children }: { children: ReactNode }) => (
   <p className="py-6 text-center text-sm text-slate-500">{children}</p>
 );
 
+// ---- Global search (product name / product id / order id) -------------------
+const MAX_PER_GROUP = 5;
+
+function SearchBox({
+  products,
+  sales,
+  productName,
+  platformById,
+}: {
+  products: Product[];
+  sales: Sale[];
+  productName: (id: number) => string;
+  platformById: Map<number, string>;
+}) {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  const needle = query.trim().toLowerCase();
+
+  // Searches ALL products and ALL sales (not limited by the period filter)
+  const results = useMemo(() => {
+    if (!needle) return { products: [] as Product[], orders: [] as Sale[], productTotal: 0, orderTotal: 0 };
+    const p = products.filter(
+      (x) => x.product_name.toLowerCase().includes(needle) || String(x.product_id).includes(needle)
+    );
+    const o = sales
+      .filter((s) => s.order_id.toLowerCase().includes(needle))
+      .sort((a, b) => byDateDesc(a.Sell_date, b.Sell_date));
+    return {
+      products: p.slice(0, MAX_PER_GROUP),
+      orders: o.slice(0, MAX_PER_GROUP),
+      productTotal: p.length,
+      orderTotal: o.length,
+    };
+  }, [needle, products, sales]);
+
+  // Where each match redirects to. The ?search= param lets those pages pre-filter if they support it.
+  // Both pages receive exactly what was typed in the dashboard search box
+  const typed = encodeURIComponent(query.trim());
+  const productHref = (_p: Product) => `/home?search=${typed}`;
+  const orderHref = (_s: Sale) => `/sales?search=${typed}`;
+
+  const firstHref = results.products[0]
+    ? productHref(results.products[0])
+    : results.orders[0]
+      ? orderHref(results.orders[0])
+      : null;
+
+  const close = () => {
+    setOpen(false);
+    setQuery("");
+  };
+
+  // Close on outside click or Escape
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const showPopup = open && needle.length > 0;
+  const noMatches = results.productTotal === 0 && results.orderTotal === 0;
+
+  return (
+    <div ref={wrapRef} className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
+      <label className="relative block">
+        <span className="sr-only">Search products, product IDs or order IDs</span>
+        <svg
+          viewBox="0 0 20 20"
+          className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          aria-hidden="true"
+        >
+          <circle cx="9" cy="9" r="5.5" />
+          <path d="M13.5 13.5L17 17" strokeLinecap="round" />
+        </svg>
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && firstHref) {
+              router.push(firstHref);
+              close();
+            }
+          }}
+          placeholder="Search product, product ID, order ID…"
+          autoComplete="off"
+          className="w-full rounded-full bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+        />
+      </label>
+
+      {showPopup && (
+        <div
+          role="listbox"
+          className="absolute left-0 top-full z-40 mt-2 max-h-[70vh] w-[min(26rem,calc(100vw-1.5rem))] overflow-y-auto rounded-3xl bg-white p-2 shadow-[0_18px_40px_-12px_rgba(15,23,42,0.35)] ring-1 ring-slate-100"
+        >
+          {noMatches ? (
+            <p className="px-4 py-6 text-center text-sm text-slate-500">
+              No product or order matches &ldquo;{query.trim()}&rdquo;.
+            </p>
+          ) : (
+            <>
+              {results.products.length > 0 && (
+                <div>
+                  <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    Products · {results.productTotal}
+                  </p>
+                  <ul>
+                    {results.products.map((p) => {
+                      const low = p.stock_quantity <= (p.reorder_level ?? LOW_STOCK_DEFAULT);
+                      return (
+                        <li key={`p-${p.id}`} role="option" aria-selected="false">
+                          <Link
+                            href={productHref(p)}
+                            onClick={close}
+                            className="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                          >
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700">
+                              <Icon d={ICONS.product} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-slate-900">
+                                {titleCase(p.product_name)}
+                              </span>
+                              <span className="block truncate text-xs text-slate-500">
+                                ID {p.product_id} · {titleCase(p.brand_name)} · {titleCase(p.color)}, {p.size}
+                              </span>
+                            </span>
+                            <span
+                              className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums text-white"
+                              style={{ backgroundColor: low ? ORANGE : GREEN }}
+                              title="Stock quantity"
+                            >
+                              {p.stock_quantity} in stock
+                            </span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {results.productTotal > MAX_PER_GROUP && (
+                    <Link
+                      href={`/home?search=${encodeURIComponent(query.trim())}`}
+                      onClick={close}
+                      className="block px-3 py-1.5 text-xs font-medium text-slate-600 hover:underline"
+                    >
+                      See all {results.productTotal} products
+                    </Link>
+                  )}
+                </div>
+              )}
+
+              {results.orders.length > 0 && (
+                <div className={results.products.length > 0 ? "mt-1 border-t border-slate-100 pt-1" : ""}>
+                  <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    Orders · {results.orderTotal}
+                  </p>
+                  <ul>
+                    {results.orders.map((s) => (
+                      <li key={`s-${s.id}`} role="option" aria-selected="false">
+                        <Link
+                          href={orderHref(s)}
+                          onClick={close}
+                          className="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                        >
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                            <Icon d={ICONS.sales} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-slate-900">
+                              {s.order_id}
+                              {!s.status && (
+                                <span
+                                  className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
+                                  style={{ backgroundColor: ORANGE }}
+                                >
+                                  Cancelled
+                                </span>
+                              )}
+                            </span>
+                            <span className="block truncate text-xs text-slate-500">
+                              {productName(s.product_id)} · {platformById.get(s.platform_id) ?? `Platform #${s.platform_id}`}
+                            </span>
+                            <span className="block truncate text-xs text-slate-500">
+                              Qty {s.quantity} · {formatDate(s.Sell_date)}
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-900">
+                            {money(Number(s.total_amount || 0))}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                  {results.orderTotal > MAX_PER_GROUP && (
+                    <Link
+                      href={`/sales?search=${encodeURIComponent(query.trim())}`}
+                      onClick={close}
+                      className="block px-3 py-1.5 text-xs font-medium text-slate-600 hover:underline"
+                    >
+                      See all {results.orderTotal} orders
+                    </Link>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- Sales (green line chart) ----------------------------------------------
 type ChartRange = "7d" | "1m" | "6m" | "12m";
 const CHART_OPTIONS: { value: ChartRange; label: string }[] = [
@@ -474,7 +706,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState<string[]>([]);
   const [period, setPeriod] = useState<Period>("this_month");
-  const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -516,7 +747,6 @@ export default function DashboardPage() {
   const d = useMemo(() => {
     const range = getRange(period);
     const prev = getPrevRange(period);
-    const needle = query.trim().toLowerCase();
     const productById = new Map(products.map((p) => [p.id, p]));
     const platformById = new Map(platforms.map((p) => [p.id, p.platform_name]));
     const supplierById = new Map(suppliers.map((s) => [s.id, s.supplier_name]));
@@ -553,12 +783,9 @@ export default function DashboardPage() {
       purchasesPct = pctChange(purchasesTotal, prevPurchases);
     }
 
-    const lowStockAll = products
+    const lowStock = products
       .filter((p) => p.status && p.stock_quantity <= (p.reorder_level ?? LOW_STOCK_DEFAULT))
       .sort((a, b) => a.stock_quantity - b.stock_quantity);
-    const lowStock = needle
-      ? lowStockAll.filter((p) => `${p.product_name} ${p.brand_name}`.toLowerCase().includes(needle))
-      : lowStockAll;
 
     const platformTotals = new Map<number, number>();
     completed.forEach((s) =>
@@ -572,12 +799,6 @@ export default function DashboardPage() {
         share: salesTotal > 0 ? Math.round((value / salesTotal) * 100) : 0,
       }))
       .sort((a, b) => b.value - a.value);
-
-    const matchSale = (s: Sale) =>
-      !needle ||
-      `${s.order_id} ${productName(s.product_id)} ${platformById.get(s.platform_id) ?? ""}`
-        .toLowerCase()
-        .includes(needle);
 
     return {
       label: periodLabel(period),
@@ -595,19 +816,17 @@ export default function DashboardPage() {
       returnQuantity,
       stockUnits: products.reduce((t, p) => t + p.stock_quantity, 0),
       activeSuppliers: suppliers.filter((s) => s.status).length,
-      lowStockCount: lowStockAll.length,
+      lowStockCount: lowStock.length,
       lowStock,
       platformRows,
       recentSales: salesInPeriod
-        .filter(matchSale)
         .sort((a, b) => byDateDesc(a.Sell_date, b.Sell_date))
         .slice(0, 5),
       recentPurchases: purchasesInPeriod
-        .filter((p) => !needle || productName(p.product_id).toLowerCase().includes(needle))
         .sort((a, b) => byDateDesc(a.purchase_date, b.purchase_date))
         .slice(0, 5),
     };
-  }, [period, query, products, sales, purchases, returns, suppliers, platforms]);
+  }, [period, products, sales, purchases, returns, suppliers, platforms]);
 
   const returnsFailed = failed.includes("returns");
   const periodOptions = PERIOD_OPTIONS.map((o) => ({
@@ -625,30 +844,15 @@ export default function DashboardPage() {
     <div className="min-h-screen min-w-0 flex-1 bg-[#eaf2ff] p-3 sm:p-6">
       <main className="mx-auto max-w-[1320px]">
         {/* Extra bottom margin keeps the cards clear of the header */}
-        <header className="mb-10 flex flex-wrap items-center justify-between gap-3 sm:mb-14">
+        <header className="relative z-20 mb-10 flex flex-wrap items-center justify-between gap-3 sm:mb-14">
           <h1 className="text-3xl font-semibold text-slate-900">Dashboard</h1>
           <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:flex-nowrap">
-            <label className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
-              <span className="sr-only">Search dashboard</span>
-              <svg
-                viewBox="0 0 20 20"
-                className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                aria-hidden="true"
-              >
-                <circle cx="9" cy="9" r="5.5" />
-                <path d="M13.5 13.5L17 17" strokeLinecap="round" />
-              </svg>
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search products, orders…"
-                className="w-full rounded-full bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
-              />
-            </label>
+            <SearchBox
+              products={products}
+              sales={sales}
+              productName={d.productName}
+              platformById={d.platformById}
+            />
             <Select value={period} options={periodOptions} onChange={setPeriod} />
             <button
               onClick={load}

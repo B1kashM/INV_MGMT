@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import BulkUploadSalesModal from "./Bulkuploadsalesmodal";
 
 const API = `${process.env.NEXT_PUBLIC_BACKEND_URL}/product`;
@@ -163,14 +164,22 @@ function SortIcon({
   );
 }
 
-export default function SalesPage() {
+function SalesContent() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [platforms, setPlatforms] = useState<PlatformOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [search, setSearch] = useState("");
+  // Pre-fill the search box from the dashboard link (/sales?search=...)
+  const searchParams = useSearchParams();
+  const urlSearch = searchParams.get("search") ?? "";
+
+  const [search, setSearch] = useState(urlSearch);
+
+  useEffect(() => {
+    setSearch(urlSearch);
+  }, [urlSearch]);
 
   const [sortConfig, setSortConfig] =
     useState<SortConfig>(null);
@@ -1478,5 +1487,14 @@ function Field({
 
       {children}
     </label>
+  );
+}
+
+// useSearchParams needs a Suspense boundary in the Next.js app router
+export default function SalesPage() {
+  return (
+    <Suspense fallback={null}>
+      <SalesContent />
+    </Suspense>
   );
 }
