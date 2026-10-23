@@ -372,9 +372,9 @@ function SearchBox({
   const noMatches = results.productTotal === 0 && results.orderTotal === 0;
 
   return (
-    <div ref={wrapRef} className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
+    <div ref={wrapRef} className="relative min-w-0 flex-1 sm:w-60 sm:flex-none">
       <label className="relative block">
-        <span className="sr-only">Search products, product IDs or order IDs</span>
+        <span className="sr-only">Search Products, orders</span>
         <svg
           viewBox="0 0 20 20"
           className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
@@ -400,9 +400,9 @@ function SearchBox({
               close();
             }
           }}
-          placeholder="Search product, product ID, order ID…"
+          placeholder="Search Products, Orders…"
           autoComplete="off"
-          className="w-full rounded-full bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+          className="w-60 rounded-full bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
         />
       </label>
 
@@ -857,7 +857,7 @@ export default function DashboardPage() {
             <button
               onClick={load}
               disabled={loading}
-              className="shrink-0 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white shadow-[0_8px_20px_-8px_rgba(0,0,0,0.5)] transition hover:bg-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:opacity-50"
+              className="shrink-0 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white shadow-[0_8px_20px_-8px_rgba(0,0,0,0.2)] transition hover:bg-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:opacity-50"
             >
               {loading ? "Refreshing…" : "Refresh"}
             </button>
