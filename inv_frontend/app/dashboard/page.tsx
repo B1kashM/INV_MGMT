@@ -372,8 +372,8 @@ function SearchBox({
   const noMatches = results.productTotal === 0 && results.orderTotal === 0;
 
   return (
-    <div ref={wrapRef} className="relative min-w-0 flex-1 sm:w-60 sm:flex-none">
-      <label className="relative block">
+    <div ref={wrapRef} className="relative w-full min-w-0 flex-1 sm:w-60 sm:flex-none">
+      <label className="relative block w-full min-w-0">
         <span className="sr-only">Search Products, orders</span>
         <svg
           viewBox="0 0 20 20"
@@ -402,14 +402,14 @@ function SearchBox({
           }}
           placeholder="Search Products, Orders…"
           autoComplete="off"
-          className="w-60 rounded-full bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+          className="block w-full min-w-0 rounded-full bg-white py-3 pl-11 pr-4 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 sm:py-2.5"
         />
       </label>
 
       {showPopup && (
         <div
           role="listbox"
-          className="absolute left-0 top-full z-40 mt-2 max-h-[70vh] w-[min(26rem,calc(100vw-1.5rem))] overflow-y-auto rounded-3xl bg-white p-2 shadow-[0_18px_40px_-12px_rgba(15,23,42,0.35)] ring-1 ring-slate-100"
+          className="absolute left-0 top-full z-40 mt-2 max-h-[70vh] w-full min-w-0 overflow-y-auto overscroll-contain rounded-3xl bg-white p-2 shadow-[0_18px_40px_-12px_rgba(15,23,42,0.35)] ring-1 ring-slate-100 sm:w-[min(26rem,calc(100vw-1.5rem))]"
         >
           {noMatches ? (
             <p className="px-4 py-6 text-center text-sm text-slate-500">
@@ -866,9 +866,9 @@ export default function DashboardPage() {
     <div className="min-h-screen min-w-0 flex-1 bg-[#eaf2ff] p-3 sm:p-6">
       <main className="mx-auto max-w-[1320px]">
         {/* Extra bottom margin keeps the cards clear of the header */}
-        <header className="relative z-20 mb-10 flex flex-wrap items-center justify-between gap-3 sm:mb-14">
+        <header className="relative z-20 mb-8 flex flex-col items-stretch gap-4 sm:mb-14 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl font-semibold text-slate-900">Dashboard</h1>
-          <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:flex-nowrap">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-3 sm:w-auto sm:flex-nowrap">
             <SearchBox
               products={products}
               sales={sales}

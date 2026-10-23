@@ -1026,7 +1026,7 @@ def bulk_add_sales(request):
             if not total.is_finite() or total < 0:
                 raise ValueError("Total amount must be non-negative.")
 
-        except (TypeError, ValueError, InvalidOperation) as exc:
+        except (TypeError, ValueError) as exc:
             errors.append({
                 "row": n,
                 "message": str(exc),
