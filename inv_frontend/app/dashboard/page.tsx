@@ -315,6 +315,7 @@ function SearchBox({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [popupTop, setPopupTop] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const needle = query.trim().toLowerCase();
@@ -352,6 +353,23 @@ function SearchBox({
     setOpen(false);
     setQuery("");
   };
+
+  // Keep the mobile preview anchored below the search field while using the full viewport width.
+  const updatePopupPosition = useCallback(() => {
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (rect) setPopupTop(Math.round(rect.bottom + 8));
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    updatePopupPosition();
+    window.addEventListener("resize", updatePopupPosition);
+    window.addEventListener("scroll", updatePopupPosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePopupPosition);
+      window.removeEventListener("scroll", updatePopupPosition, true);
+    };
+  }, [open, updatePopupPosition]);
 
   // Close on outside click or Escape
   useEffect(() => {
@@ -409,7 +427,8 @@ function SearchBox({
       {showPopup && (
         <div
           role="listbox"
-          className="absolute left-0 top-full z-40 mt-2 max-h-[70vh] w-full min-w-0 overflow-y-auto overscroll-contain rounded-3xl bg-white p-2 shadow-[0_18px_40px_-12px_rgba(15,23,42,0.35)] ring-1 ring-slate-100 sm:w-[min(26rem,calc(100vw-1.5rem))]"
+          className="fixed left-2 right-2 z-[100] max-h-[min(70vh,32rem)] min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl bg-white p-1.5 shadow-[0_18px_40px_-12px_rgba(15,23,42,0.35)] ring-1 ring-slate-100 sm:absolute sm:left-0 sm:right-auto sm:!top-full sm:!mt-2 sm:w-[min(26rem,calc(100vw-1.5rem))] sm:rounded-3xl sm:p-2"
+          style={{ top: popupTop }}
         >
           {noMatches ? (
             <p className="px-4 py-6 text-center text-sm text-slate-500">
@@ -430,7 +449,7 @@ function SearchBox({
                           <Link
                             href={productHref(p)}
                             onClick={close}
-                            className="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                            className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl px-2.5 py-2.5 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 sm:flex-nowrap sm:gap-3 sm:px-3"
                           >
                             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700">
                               <Icon d={ICONS.product} />
@@ -444,7 +463,7 @@ function SearchBox({
                               </span>
                             </span>
                             <span
-                              className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums text-white"
+                              className="ml-12 max-w-[calc(100%-3rem)] shrink-0 truncate rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums text-white sm:ml-0 sm:max-w-none sm:py-0.5 sm:text-xs"
                               style={{ backgroundColor: low ? ORANGE : GREEN }}
                               title="Stock quantity"
                             >
@@ -478,7 +497,7 @@ function SearchBox({
                         <Link
                           href={orderHref(s)}
                           onClick={close}
-                          className="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                          className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl px-2.5 py-2.5 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 sm:flex-nowrap sm:gap-3 sm:px-3"
                         >
                           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
                             <Icon d={ICONS.sales} />
@@ -502,7 +521,7 @@ function SearchBox({
                               Qty {s.quantity} · {formatDate(s.Sell_date)}
                             </span>
                           </span>
-                          <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-900">
+                          <span className="ml-12 max-w-[calc(100%-3rem)] truncate text-sm font-semibold tabular-nums text-slate-900 sm:ml-0 sm:max-w-none">
                             {money(Number(s.total_amount || 0))}
                           </span>
                         </Link>
@@ -1161,7 +1180,7 @@ export default function DashboardPage() {
                               </span>
                             </span>
                             <span
-                              className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums text-white"
+                              className="ml-12 max-w-[calc(100%-3rem)] shrink-0 truncate rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums text-white sm:ml-0 sm:max-w-none sm:py-0.5 sm:text-xs"
                               style={{ backgroundColor: ORANGE }}
                             >
                               {p.stock_quantity}
